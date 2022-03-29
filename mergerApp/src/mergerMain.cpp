@@ -27,6 +27,7 @@
 DEFINE_LOGGER(LOG, "merger");
 DEFINE_LOGGER(LISTENER_LOG, "merger.listener");
 DEFINE_LOGGER(REACTOR_LOG, "merger.reactor");
+DEFINE_LOGGER(SERVER_LOG, "merger.server");
 
 using tabulator::nt::NTTable;
 using tabulator::TimeSpan;
@@ -37,15 +38,33 @@ static const size_t QUEUE_SIZE = 1024u;
 
 class Runnable : public epicsThreadRunable {
 protected:
+    std::shared_ptr<pvxs::MPMCFIFO<Runnable*>> dead_;
+    bool running_;
     epicsThread thread_;
 
-    Runnable(const char *name)
-    : thread_(*this, name, epicsThreadGetStackSize(epicsThreadStackMedium), epicsThreadPriorityMedium)
+    Runnable(const char *name, std::shared_ptr<pvxs::MPMCFIFO<Runnable*>> dead)
+    : dead_(dead), running_(false), thread_(*this, name, epicsThreadGetStackSize(epicsThreadStackMedium), epicsThreadPriorityMedium)
     {}
+
+    // Natural stop
+    void stopped() {
+        running_ = false;
+        dead_->push(this);
+    }
 
 public:
     void start() {
+        running_ = true;
         thread_.start();
+    }
+
+    // Force stop
+    virtual void stop(double delay) {
+        if (running_) {
+            running_ = false;
+            thread_.exitWait(delay);
+            dead_->push(this);
+        }
     }
 
     virtual ~Runnable() {};
@@ -59,8 +78,10 @@ private:
     std::shared_ptr<TimeAlignedTable> taligned_table_;
 
 public:
-    Listener(const std::vector<std::string> & pvlist, const std::shared_ptr<TimeAlignedTable> & taligned_table)
-    : Runnable(typeid(Listener).name()),
+    Listener(
+        std::shared_ptr<pvxs::MPMCFIFO<Runnable*>> dead, const std::vector<std::string> & pvlist,
+        const std::shared_ptr<TimeAlignedTable> & taligned_table
+    ) : Runnable(typeid(Listener).name(), dead),
       client_(pvxs::client::Context::fromEnv()), queue_(QUEUE_SIZE),
       subscriptions_(), taligned_table_(taligned_table)
     {
@@ -82,8 +103,12 @@ public:
         log_info_printf(LISTENER_LOG, "Starting%s\n", "");
         log_info_printf(LISTENER_LOG, "  # subscriptions=%lu\n", subscriptions_.size());
 
-        for (;;) {
+        while (running_) {
             auto item = queue_.pop();
+
+            if (!running_)
+                break;
+
             auto col_idx = item.first;
             auto sub = item.second;
 
@@ -101,11 +126,21 @@ public:
 
             } catch (std::exception &e) {
                 // TODO: handle disconnection gracefully
-                log_err_printf(LISTENER_LOG, "Error: %s\n", e.what());
+                log_err_printf(LISTENER_LOG, "Error: %s %s\n", sub->name().c_str(), e.what());
+                break;
             }
 
             queue_.push(std::make_pair(col_idx, sub));
         }
+        log_info_printf(LISTENER_LOG, "Ending%s\n", "");
+        stopped();
+    }
+
+    void stop(double delay) {
+        // Ensure we "pump" the queue
+        running_ = false;
+        queue_.emplace(0, nullptr);
+        Runnable::stop(delay);
     }
 
     virtual ~Listener() {}
@@ -120,13 +155,39 @@ private:
 
 public:
     Reactor(
-        const std::shared_ptr<TimeAlignedTable> & taligned_table, double period, double timeout,
-        pvxs::server::SharedPV & pv)
-    : Runnable(typeid(Reactor).name()),
+        std::shared_ptr<pvxs::MPMCFIFO<Runnable*>> dead,
+        const std::shared_ptr<TimeAlignedTable> & taligned_table, double period,
+        double timeout, pvxs::server::SharedPV & pv)
+    : Runnable(typeid(Reactor).name(), dead),
       taligned_table_(taligned_table), period_(period), timeout_(timeout), pv_(pv)
     {
         assert(period > 0.0);
         assert(timeout > period);
+    }
+
+    bool prepare(double sleepPeriod) {
+        // Wait until all PVs have at least 1 update
+        epicsTimeStamp start_ts, now_ts;
+        epicsTimeGetCurrent(&start_ts);
+        epicsTimeGetCurrent(&now_ts);
+
+        log_info_printf(REACTOR_LOG, "Waiting until all PVs have at least one update%s\n", "");
+
+        while (running_ && epicsTimeDiffInSeconds(&now_ts, &start_ts) < timeout_ && !taligned_table_->initialized()) {
+            epicsThreadSleep(sleepPeriod);
+            continue;
+        }
+
+        if (!running_)
+            return false;
+
+
+        if (!taligned_table_->initialized()) {
+            log_err_printf(REACTOR_LOG, "Failed to connect to all PVs... Exiting.%s\n", "");
+            return false;
+        }
+
+        return true;
     }
 
     virtual void run() {
@@ -137,32 +198,17 @@ public:
         log_info_printf(REACTOR_LOG, "  timeout=%.6f s\n", timeout_);
         log_info_printf(REACTOR_LOG, "  refresh=%.6f s\n", sleepPeriod);
 
-        // Wait until all PVs have at least 1 update
-        epicsTimeStamp start_ts, now_ts;
-        epicsTimeGetCurrent(&start_ts);
-        epicsTimeGetCurrent(&now_ts);
-
-        log_info_printf(REACTOR_LOG, "Waiting until all PVs have at least one update%s\n", "");
-
-        while (epicsTimeDiffInSeconds(&now_ts, &start_ts) < timeout_ && !taligned_table_->initialized()) {
-            epicsThreadSleep(sleepPeriod);
-            continue;
-        }
-
-        if (!taligned_table_->initialized()) {
-            log_err_printf(REACTOR_LOG, "Failed to connect to all PVs... Exiting.%s\n", "");
-            exit(0);
+        if (!prepare(sleepPeriod)) {
+            log_info_printf(REACTOR_LOG, "Ending%s\n", "");
+            stopped();
+            return;
         }
 
         // Now that all PVs are connected, extract NTTable
         auto initial = taligned_table_->create();
         pv_.open(initial);
 
-        /*std::string s;
-        s << initial;
-        log_info_printf(REACTOR_LOG, "Opened PV\n%s\n", initial);*/
-
-        for (;;) {
+        while (running_) {
             TimeBounds bounds = taligned_table_->get_timebounds();
 
             if (!bounds.valid) {
@@ -181,15 +227,6 @@ public:
                 continue;
             }
 
-            taligned_table_->dump();
-            /*
-            printf("V=%d S=%u.%u  EE=%u.%u  LE=%u.%u\n",
-                timespan.valid,
-                timespan.start.secPastEpoch, timespan.start.nsec,
-                timespan.earliest_end.secPastEpoch, timespan.earliest_end.nsec,
-                timespan.latest_end.secPastEpoch, timespan.latest_end.nsec
-            );*/
-
             epicsTimeStamp start = bounds.earliest_start;
             epicsTimeStamp end = bounds.earliest_start;
             epicsTimeAddSeconds(&end, period_);
@@ -201,6 +238,9 @@ public:
             auto value = taligned_table_->extract(start, end);
             pv_.post(value);
         }
+
+        log_info_printf(REACTOR_LOG, "Ending%s\n", "");
+        stopped();
     }
 
     virtual ~Reactor() {}
@@ -211,16 +251,26 @@ private:
     pvxs::server::Server server_;
 
 public:
-    Server(const std::string & pvname, pvxs::server::SharedPV & pv)
-    : Runnable(typeid(Server).name()),
+    Server(
+        std::shared_ptr<pvxs::MPMCFIFO<Runnable*>> dead,
+        const std::string & pvname, pvxs::server::SharedPV & pv
+    ) : Runnable(typeid(Server).name(), dead),
       server_(pvxs::server::Config::fromEnv().build())
-
     {
+        log_info_printf(SERVER_LOG, "Creating server for PV: %s\n", pvname.c_str());
         server_.addPV(pvname, pv);
     }
 
     virtual void run() {
+        log_info_printf(SERVER_LOG, "Starting\n%s", "");
         server_.run();
+        stopped();
+        log_info_printf(SERVER_LOG, "Ending\n%s", "");
+    }
+
+    void stop(double delay) {
+        server_.stop();
+        Runnable::stop(delay);
     }
 
     virtual ~Server() {}
@@ -298,13 +348,6 @@ int main (int argc, char *argv[]) {
     std::vector<std::string> pvlist(pvlist_from_file(pvlist_file));
 
     // Create
-
-    /*epicsEvent sigint_evt;
-    pvxs::SigInt handle([&sigint_evt]() {
-        std::cout << "SIG" << std::endl;
-        sigint_evt.trigger();
-    });*/
-
     log_info_printf(LOG, "Starting%s\n", "");
     log_info_printf(LOG, "  pvlist=%s [%lu PVs]\n", pvlist_file.c_str(), pvlist.size());
     log_info_printf(LOG, "  alignment=%u us\n", alignment);
@@ -313,24 +356,34 @@ int main (int argc, char *argv[]) {
     log_info_printf(LOG, "  pvname=%s\n", pvname.c_str());
 
     // Shared objects
+    auto dead_queue = std::make_shared<pvxs::MPMCFIFO<Runnable*>>();
     auto taligned_table(std::make_shared<TimeAlignedTable>(pvlist, alignment));
     pvxs::server::SharedPV pv(pvxs::server::SharedPV::buildReadonly());
 
     // Prepare workers
-    Listener listener(pvlist, taligned_table);
-    Reactor updater(taligned_table, period, timeout, pv);
-    Server server(pvname, pv);
+    Listener listener(dead_queue, pvlist, taligned_table);
+    Reactor reactor(dead_queue, taligned_table, period, timeout, pv);
+    Server server(dead_queue, pvname, pv);
 
     // Run workers
     listener.start();
-    updater.start();
+    reactor.start();
     server.start();
 
-    //listener.wait();
-    //sigint_evt.wait();
+    // Wait for one thread to die
+    // CTRL+C is handled by the Server thread
+    auto dead = dead_queue->pop();
 
-    // TODO: handle exit gracefully
-    for(;;);
+    // Ask other threads to stop
+    if (dynamic_cast<Runnable*>(&listener) != dead)
+        listener.stop(1.0);
+
+    if (dynamic_cast<Runnable*>(&reactor) != dead)
+        reactor.stop(1.0);
+
+    if (dynamic_cast<Runnable*>(&server) != dead)
+        server.stop(1.0);
+
     log_info_printf(LOG, "Exiting%s\n", "");
 
     return 0;

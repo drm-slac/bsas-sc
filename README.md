@@ -1,6 +1,6 @@
 # Tabulator
 
-This repository contains a few useful apps. All definitions are under the `tabulator` namespace.
+This repository contains a few useful apps. All definitions are under the `tabulator` namespace. All EPICS V7 operations are done using [`pvxs`](https://github.com/mdavidsaver/pvxs).
 
 ## nttableApp
 
