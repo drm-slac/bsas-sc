@@ -1,0 +1,27 @@
+record(aSub, "$(P)$(R)_ASUB") {
+    field(INAM, "stacker_init")
+    field(SNAM, "stacker_proc")
+
+    # Input PV (scalar PV to be stacked)
+    field(FTA,  "DOUBLE")
+    field(INPA, "$(INPP)$(INPR) CP")
+
+    # Output columns configuration (below values should be OR'ed)
+    #   0x00: timestamp + value (always included)
+    #   0x01: timestamp user tag
+    #   0x02: alarm severity
+    #   0x04: alarm condition
+    #   0x08: alarm message
+    field(FTB,  "LONG")
+    field(INPB, {const: $(CONFIG)})
+
+    # Period (seconds)
+    field(FTC,  "DOUBLE")
+    field(INPC, {const: $(PERIOD)})
+
+    # Output NTTable PV Name
+    field(FTD,  "CHAR")
+    field(NOD,  "256")
+    field(INPD, {const: "$(P)$(R)"})
+}
+

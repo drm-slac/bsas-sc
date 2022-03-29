@@ -1,0 +1,32 @@
+record(aSub, "$(P)$(R)_ASUB") {
+    field(INAM, "sim_init")
+    field(SNAM, "sim_proc")
+
+    field(SCAN, "$(SCAN)")
+
+    # Number of PVs to simulate
+    field(FTA,  "LONG")
+    field(INPA, {const: $(COUNT)})
+
+    # Output columns for each PV (below values should be OR'ed)
+    #   0x01: timestamp user tag
+    #   0x02: alarm severity
+    #   0x04: alarm condition
+    #   0x08: alarm message
+    field(FTB,  "LONG")
+    field(INPB, {const: $(COLUMNS)})
+
+    # Time step (seconds)
+    field(FTC,  "DOUBLE")
+    field(INPC, {const: $(TIME_STEP_SEC)})
+
+    # Number of rows per update
+    field(FTD,  "LONG")
+    field(INPD, {const: $(NUM_ROWS)})
+
+    # Output NTTable PV Name
+    field(FTE,  "CHAR")
+    field(NOE,  "256")
+    field(INPE, {const: "$(P)$(R)"})
+}
+
