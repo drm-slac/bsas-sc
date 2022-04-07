@@ -8,25 +8,30 @@ record(aSub, "$(P)$(R)_ASUB") {
     field(FTA,  "LONG")
     field(INPA, {const: $(COUNT)})
 
-    # Output columns for each PV (below values should be OR'ed)
+    # Output configuration for each PV
+    # The output can be either a table of scalars or a table of statistics
+    # Table of scalars (below values should be OR'ed)
     #   0x01: timestamp user tag
     #   0x02: alarm severity
     #   0x04: alarm condition
     #   0x08: alarm message
+    # Table of statistics:
+    #   0x10: statitics table with the following columns:
+    #         num_samples, min, max, mean, std, rms
     field(FTB,  "LONG")
-    field(INPB, {const: $(COLUMNS)})
+    field(INPB, {const: $(CONFIG)})
+
+    # Number of compressed samples
+    # Used only in statistics table
+    field(FTC,  "LONG")
+    field(INPC, {const: $(NUM_SAMPLES)})
 
     # Time step (seconds)
-    field(FTC,  "DOUBLE")
-    field(INPC, {const: $(TIME_STEP_SEC)})
+    field(FTD,  "DOUBLE")
+    field(INPD, {const: $(TIME_STEP_SEC)})
 
     # Number of rows per update
-    field(FTD,  "LONG")
-    field(INPD, {const: $(NUM_ROWS)})
-
-    # Output NTTable PV Name
-    field(FTE,  "CHAR")
-    field(NOE,  "256")
-    field(INPE, {const: "$(P)$(R)"})
+    field(FTE,  "LONG")
+    field(INPE, {const: $(NUM_ROWS)})
 }
 

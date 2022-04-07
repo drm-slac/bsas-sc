@@ -6,6 +6,7 @@
 #include <dbAccess.h>
 #include <alarm.h>
 #include <devSup.h>
+#include <epicsVersion.h>
 
 #include <vector>
 #include <iostream>
@@ -29,17 +30,18 @@ DEFINE_LOGGER(LOG, "sim");
 using tabulator::nt::NTTable;
 using tabulator::TimeTable;
 using tabulator::TimeTableScalar;
+using tabulator::TimeTableStat;
 using tabulator::TimeTableValue;
 
 namespace util = tabulator::util;
 
-enum Columns : uint8_t {
+enum Config : uint8_t {
     TIMESTAMP_UTAG      = 0x01,
     ALARM_SEVERITY      = 0x02,
     ALARM_CONDITION     = 0x04,
     ALARM_MESSAGE       = 0x08,
+    STAT                = 0x10,
 };
-
 
 static inline std::string column_name(const std::string & prefix, const std::string & suffix) {
     // TODO: check if prefix is malformed (and throw)
@@ -51,8 +53,18 @@ static inline std::string label_name(const std::string & prefix, const std::stri
     return prefix + " " + suffix;
 }
 
+struct SimSource {
+    const std::unique_ptr<TimeTable> type;
+    virtual TimeTableValue simulate(size_t num_rows) = 0;
+    virtual ~SimSource() {}
+
+    SimSource(std::unique_ptr<TimeTable> && type)
+    : type(std::move(type))
+    {}
+};
+
 // 1 Hz sinusoid
-class SimSource {
+class SimSourceScalar : public SimSource {
 private:
     constexpr static const double HIHI = 0.99;
     constexpr static const double HIGH = 0.95;
@@ -62,16 +74,16 @@ private:
     size_t t_;
 
 public:
-    const TimeTableScalar type;
+    //const TimeTableScalar type;
     const double step_sec;
 
-    SimSource(const TimeTableScalar::Config & columns, double step_sec)
-    : t_(0), type(columns), step_sec(step_sec)
+    SimSourceScalar(const TimeTableScalar::Config & columns, double step_sec)
+    : SimSource(std::unique_ptr<TimeTable>(new TimeTableScalar(columns))), t_(0), step_sec(step_sec)
     {}
 
     TimeTableValue simulate(size_t num_rows) {
 
-        auto output = type.create();
+        auto output = type->create();
 
         pvxs::shared_array<TimeTableScalar::VALUE_T> value(num_rows);
 
@@ -80,14 +92,16 @@ public:
             ++t_;
         }
 
+        const TimeTableScalar::Config *config = &static_cast<const TimeTableScalar*>(type.get())->config;
+
         // Populate with zeroes for now
-        if (type.config.utag) {
+        if (config->utag) {
             pvxs::shared_array<const TimeTableScalar::UTAG_T> utag(num_rows, 0);
             output.set_column(TimeTableScalar::UTAG_COL, utag);
         }
 
         // Hard-coded alarm limits
-        if (type.config.alarm_sev) {
+        if (config->alarm_sev) {
             pvxs::shared_array<TimeTableScalar::ALARM_SEV_T> alarm_sev(num_rows);
 
             for (size_t i = 0; i < num_rows; ++i) {
@@ -104,7 +118,7 @@ public:
             output.set_column(TimeTableScalar::ALARM_SEV_COL, alarm_sev.freeze());
         }
 
-        if (type.config.alarm_cond) {
+        if (config->alarm_cond) {
             pvxs::shared_array<TimeTableScalar::ALARM_COND_T> alarm_cond(num_rows);
 
             for (size_t i = 0; i < num_rows; ++i) {
@@ -126,12 +140,83 @@ public:
         }
 
        // Populate with empty messages for now
-        if (type.config.alarm_message) {
+        if (config->alarm_message) {
             pvxs::shared_array<const TimeTableScalar::ALARM_MSG_T> alarm_msg(num_rows, std::string(""));
             output.set_column(TimeTableScalar::ALARM_MSG_COL, alarm_msg);
         }
 
         output.set_column(TimeTableScalar::VALUE_COL, value.freeze());
+        return output;
+    }
+};
+
+class SimSourceStat : public SimSource {
+private:
+    size_t t_;
+
+public:
+    const size_t num_samp;
+    const double step_sec;
+
+    SimSourceStat(size_t num_samp, double step_sec)
+    : SimSource(std::unique_ptr<TimeTable>(new TimeTableStat())), t_(0), num_samp(num_samp), step_sec(step_sec)
+    {}
+
+    TimeTableValue simulate(size_t num_rows) {
+
+        pvxs::shared_array<TimeTableStat::NUM_SAMP_T> num_samp_col(num_rows, static_cast<TimeTableStat::NUM_SAMP_T>(num_samp));
+        pvxs::shared_array<TimeTableStat::MIN_T> min_col(num_rows);
+        pvxs::shared_array<TimeTableStat::MAX_T> max_col(num_rows);
+        pvxs::shared_array<TimeTableStat::MEAN_T> mean_col(num_rows);
+        pvxs::shared_array<TimeTableStat::STD_T> std_col(num_rows);
+        pvxs::shared_array<TimeTableStat::RMS_T> rms_col(num_rows);
+
+        double sub_step_sec = step_sec / num_samp;
+
+        for (size_t row = 0; row < num_rows; ++row) {
+            std::vector<double> fast_samples(num_samp);
+
+            double min = std::numeric_limits<double>::max();
+            double max = std::numeric_limits<double>::min();
+            double sum = 0.0;
+            double sumsq = 0.0;
+
+            for (size_t i = 0; i < num_samp; ++i) {
+                double sample = fast_samples[i] = sin((t_*step_sec + i*sub_step_sec)*2*PI);
+                min = std::min(min, sample);
+                max = std::max(max, sample);
+                sum += sample;
+                sumsq = std::pow(sample, 2);
+            }
+
+            double mean = sum / num_samp;
+            double std = 0;
+
+            for (const auto & sample : fast_samples)
+                std += std::pow(sample - mean, 2);
+
+            std = std::sqrt(std / num_samp);
+
+            double rms = std::sqrt(sumsq / num_samp);
+
+            min_col[row] = min;
+            max_col[row] = max;
+            mean_col[row] = mean;
+            std_col[row] = std;
+            rms_col[row] = rms;
+
+            ++t_;
+        }
+
+        auto output = type->create();
+
+        output.set_column(TimeTableStat::NUM_SAMP_COL, num_samp_col.freeze());
+        output.set_column(TimeTableStat::MIN_COL, min_col.freeze());
+        output.set_column(TimeTableStat::MAX_COL, max_col.freeze());
+        output.set_column(TimeTableStat::MEAN_COL, mean_col.freeze());
+        output.set_column(TimeTableStat::STD_COL, std_col.freeze());
+        output.set_column(TimeTableStat::RMS_COL, rms_col.freeze());
+
         return output;
     }
 };
@@ -150,37 +235,25 @@ static std::vector<std::string> gen_source_names(const std::string & prefix, siz
     return names;
 }
 
-static std::vector<SimSource> gen_sources(size_t count, const TimeTableScalar::Config & config, double step_sec) {
-    std::vector<SimSource> sources;
-
-    for (size_t i = 0; i < count; ++i)
-        sources.emplace_back(config, step_sec);
-
-    return sources;
-}
-
-static TimeTable gen_type(const std::vector<std::string> & names, const std::vector<SimSource> & sources) {
+static TimeTable gen_type(const std::vector<std::string> & names, const std::unique_ptr<SimSource> & source) {
     std::vector<NTTable::ColumnSpec> data_columns;
 
-    auto name = names.begin();
-    auto source = sources.begin();
-
-    for (; name != names.end(); ++name, ++source)
-        for (auto col : source->type.data_columns)
-            data_columns.emplace_back(col.type_code, column_name(*name, col.name), label_name(*name, col.label));
+    for (const auto & name : names)
+        for (const auto & col : source->type->data_columns)
+            data_columns.emplace_back(col.type_code, column_name(name, col.name), label_name(name, col.label));
 
     return TimeTable(data_columns);
 }
 
 struct SimTable {
+
     // Configuration
     const std::string name;
-    const TimeTableScalar::Config config;
     const double step_sec;
 
     // Inner sources
     const std::vector<std::string> source_names;
-    std::vector<SimSource> sources;
+    std::unique_ptr<SimSource> source;  // Single "real" source (which means all sources will have the same value at the same timestamp)
 
     // PVXS
     const TimeTable type;
@@ -189,10 +262,9 @@ struct SimTable {
     // State
     epicsTimeStamp ts;
 
-    SimTable(const char *name, size_t count, TimeTableScalar::Config config, double step_sec,
-        const char * output_pv_name)
-    :name(name), config(config), step_sec(step_sec), source_names(gen_source_names(output_pv_name, count)),
-     sources(gen_sources(count, config, step_sec)), type(gen_type(source_names, sources)),
+    SimTable(const char *name, double step_sec, size_t count, std::unique_ptr<SimSource> && source, const std::string & output_pv_name)
+    :name(name), step_sec(step_sec), source_names(gen_source_names(output_pv_name, count)), source(std::move(source)),
+     type(gen_type(source_names, this->source)),
      pv(pvxs::server::SharedPV::buildReadonly())
     {
         epicsTimeGetCurrent(&ts);
@@ -206,14 +278,15 @@ struct SimTable {
     }
 
     void process(size_t num_rows) {
-        log_debug_printf(LOG, "Sim[%s]: process %lu rows\n", name.c_str(), num_rows);
+        epicsTimeStamp start, end;
+        epicsTimeGetCurrent(&start);
 
         // Output
         auto output = type.create();
 
         // Timestamps
-        pvxs::shared_array<TimeTableScalar::SECONDS_PAST_EPOCH_T> secondsPastEpoch(num_rows);
-        pvxs::shared_array<TimeTableScalar::NANOSECONDS_T> nanoseconds(num_rows);
+        pvxs::shared_array<TimeTable::SECONDS_PAST_EPOCH_T> secondsPastEpoch(num_rows);
+        pvxs::shared_array<TimeTable::NANOSECONDS_T> nanoseconds(num_rows);
 
         for (size_t i = 0; i < num_rows; ++i) {
             epicsTimeStamp row_ts = ts;
@@ -228,12 +301,9 @@ struct SimTable {
 
         // Outer columns
         auto outer_column = type.data_columns.begin();
+        auto v = source->simulate(num_rows);
 
-        auto source_name = source_names.begin();
-        auto source = sources.begin();
-        for (; source_name != source_names.end(); ++source_name, ++source) {
-            auto v = source->simulate(num_rows);
-
+        for (auto source_name = source_names.begin(); source_name != source_names.end(); ++source_name) {
             for (auto inner_column : v.type.data_columns) {
                 output.set_column(outer_column->name, v.get_column_as<void>(inner_column.name));
                 ++outer_column;
@@ -242,6 +312,9 @@ struct SimTable {
         pv.post(output.get());
 
         epicsTimeAddSeconds(&ts, num_rows*step_sec);
+
+        epicsTimeGetCurrent(&end);
+        log_debug_printf(LOG, "Sim[%s]: processed %lu rows in %.3f sec\n", name.c_str(), num_rows, epicsTimeDiffInSeconds(&end, &start));
     }
 };
 
@@ -257,24 +330,45 @@ static long sim_init(aSubRecord *prec) {
 
     CHECK_INP(fta, INPA, LONG);     // Number of PVs
     CHECK_INP(ftb, INPB, LONG);     // Column selection
-    CHECK_INP(ftc, INPC, DOUBLE);   // Time Step (sec)
-    CHECK_INP(ftd, INPD, LONG);     // Number of rows in each update
-    CHECK_INP(fte, INPE, CHAR);     // Output NTTable name
+    CHECK_INP(ftc, INPC, LONG);     // Number of compressed samples (if using STAT simulation)
+    CHECK_INP(ftd, INPD, DOUBLE);   // Time Step (sec)
+    CHECK_INP(fte, INPE, LONG);     // Number of rows in each update
     #undef CHECK_INP
 
     long num_pvs = *static_cast<long*>(prec->a);
-    long columns = *static_cast<long*>(prec->b);
-    double step_sec = *static_cast<double*>(prec->c);
-    const char *output_pv_name = static_cast<const char*>(prec->e);
+    long config = *static_cast<long*>(prec->b);
+    long num_samp = *static_cast<long*>(prec->c);
+    double step_sec = *static_cast<double*>(prec->d);
 
-    TimeTableScalar::Config config(
-        (columns & Columns::TIMESTAMP_UTAG) != 0,
-        (columns & Columns::ALARM_SEVERITY) != 0,
-        (columns & Columns::ALARM_CONDITION) != 0,
-        (columns & Columns::ALARM_MESSAGE) != 0
-    );
+    // Assume our name is xxxx_ASUB, chop off the _ASUB suffix to derive the V7 PV name
+    std::string output_pv_name(prec->name);
+    {
+        size_t found = output_pv_name.rfind("_ASUB");
+        assert(found != std::string::npos);
+        output_pv_name.resize(found);
+    }
 
-    SimTable *sim = new SimTable(prec->name, num_pvs, config, step_sec, output_pv_name);
+    log_debug_printf(LOG, "sim_init[%s]: Simulating %ld %s PVs, step=%.3f sec (stat samples=%ld) to output=%s\n",
+        prec->name, num_pvs, (config & Config::STAT) != 0 ? "statistics" : "scalar",
+        step_sec, num_samp, output_pv_name.c_str());
+
+    std::unique_ptr<SimSource> source;
+
+    if ((config & Config::STAT) != 0) {
+        source.reset(new SimSourceStat(num_samp, step_sec));
+    } else {
+        TimeTableScalar::Config scalar_config(
+            (config & Config::TIMESTAMP_UTAG) != 0,
+            (config & Config::ALARM_SEVERITY) != 0,
+            (config & Config::ALARM_CONDITION) != 0,
+            (config & Config::ALARM_MESSAGE) != 0
+        );
+
+        source.reset(new SimSourceScalar(scalar_config, step_sec));
+    }
+
+    SimTable *sim = new SimTable(prec->name, step_sec, num_pvs, std::move(source), output_pv_name);
+    log_debug_printf(LOG, "created simtable%s\n", "");
     prec->dpvt = static_cast<void*>(sim);
 
     return 0;
@@ -289,7 +383,7 @@ static long sim_proc(aSubRecord *prec) {
         return S_dev_NoInit;
     }
 
-    long num_rows = *static_cast<long*>(prec->d);
+    long num_rows = *static_cast<long*>(prec->e);
     sim->process(num_rows);
 
     return 0;

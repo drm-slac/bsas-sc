@@ -5,7 +5,7 @@
 dbLoadDatabase("../../dbd/simulator.dbd",0,0)
 simulator_registerRecordDeviceDriver(pdbbase)
 
-dbLoadRecords("../../db/sim_table.db","P=SIM:,R=TABLE,SCAN=1 second,COUNT=2,COLUMNS=0x00,TIME_STEP_SEC=0.001,NUM_ROWS=5")
+dbLoadRecords("../../db/sim_table.db","P=SIM:,R=STAT,SCAN=1 second,COUNT=3,NUM_SAMPLES=1000,CONFIG=16,TIME_STEP_SEC=0.001,NUM_ROWS=1000")
 
 iocInit()
 

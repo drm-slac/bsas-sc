@@ -11,12 +11,19 @@ namespace tabulator {
 
 COLSPEC(TimeTable::SECONDS_PAST_EPOCH, TypeCode::UInt32A, "secondsPastEpoch");
 COLSPEC(TimeTable::NANOSECONDS,        TypeCode::UInt32A, "nanoseconds");
+
 COLSPEC(TimeTableScalar::VALUE,        TypeCode::Float64A, "value");
 COLSPEC(TimeTableScalar::UTAG,         TypeCode::UInt64A,  "utag");
 COLSPEC(TimeTableScalar::ALARM_SEV,    TypeCode::UInt16A,  "severity");
 COLSPEC(TimeTableScalar::ALARM_COND,   TypeCode::UInt16A,  "condition");
 COLSPEC(TimeTableScalar::ALARM_MSG,    TypeCode::StringA,  "message");
 
+COLSPEC(TimeTableStat::NUM_SAMP,       TypeCode::Float64A, "num_samples");
+COLSPEC(TimeTableStat::MIN,            TypeCode::Float64A, "min");
+COLSPEC(TimeTableStat::MAX,            TypeCode::Float64A, "max");
+COLSPEC(TimeTableStat::MEAN,           TypeCode::Float64A, "mean");
+COLSPEC(TimeTableStat::STD,            TypeCode::Float64A, "std");
+COLSPEC(TimeTableStat::RMS,            TypeCode::Float64A, "rms");
 #undef COLSPEC
 
 static std::vector<nt::NTTable::ColumnSpec> from_data_columns(const std::vector<nt::NTTable::ColumnSpec> & data_columns) {
@@ -133,6 +140,10 @@ static std::vector<nt::NTTable::ColumnSpec> from_columns_config(TimeTableScalar:
 TimeTableScalar::TimeTableScalar(Config config)
 : TimeTable(from_columns_config(config)),
   config(config)
+{}
+
+TimeTableStat::TimeTableStat()
+: TimeTable({ NUM_SAMP, MIN, MAX, MEAN, STD, RMS })
 {}
 
 
