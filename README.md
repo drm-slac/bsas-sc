@@ -38,7 +38,7 @@ Defines three classes that are used throughout the project.
 
 ## simulatorApp
 
-This App contains a couple of useful simulators.
+This App contains a few useful simulators.
 
 ### `ioc-sim-scalar`
 
@@ -49,18 +49,19 @@ Simulates a number of scalar PVs via calc records. It provides databases to load
 * `HIGH`: `0.95`
 * `HIHI`: `0.99`
 
-### `ioc-sim-table`
+### `ioc-sim-table-scalar`
 
 Simulates an NTTable with a configurable number of columns. It is meant to simulate aggregated readings from disparate but correlated PVs. The simulation happens in the device support of an `asub` record. The database provides a few macros to configure it:
 
 * `COUNT`: The number of scalar PVs to simulate. All PVs will have the same value at the same timestamp, a sinusoidal equivalent to the one in `ioc-sim-scalar` (with the same alarm limits).
-* `COLUMNS`: Which metadata columns to simulate. OR together:
+* `CONFIG`: Which metadata columns to simulate. OR together:
     * `0x00`: Value (always included)
     * `0x01`: User Tag (always 0 if included)
     * `0x02`: Alarm severity
     * `0x04`: Alarm condition
     * `0x08`: Alarm message (always empty if included)
 * `SCAN`: How often to produce updates.
+* `NUM_SAMPLES`: **Ignored**. See below
 * `TIME_STEP_SEC`: The time difference between each simulated row, in seconds.
 * `NUM_ROWS`: The number of rows to produce at each update.
 
@@ -80,6 +81,44 @@ Then every second a V7 NTTable named `SIM:TABLE` with `1000 rows` will be produc
 | `pv0_severity`     | `SIM:TABLE:0 severity` | `uint16_t` |
 | `pv1_value`        | `SIM:TABLE:1 value`    | `double`   |
 | `pv1_severity`     | `SIM:TABLE:1 severity` | `uint16_t` |
+
+The timestamps between rows will be 1 millisecond apart.
+
+### `ioc-sim-table-stat`
+
+Simulates an NTTable with statistics samples. It is meant to simulate statistically compressed readings from disparate but correlated PVs. The simulation happens in the device support of an `asub` record. The database provides a few macros to configure it:
+
+* `COUNT`: The number of "signals" to simulate. All "signals" will have the same value at the same timestamp, a compressed sinusoidal equivalent to the one in `ioc-sim-scalar`. Each row is equivalent to compressing `NUM_SAMPLES` samples.
+* `CONFIG`: Indicates that this is a simulated statistics table. The only acceptable value is `0x10`.
+* `SCAN`: How often to produce updates.
+* `NUM_SAMPLES`: Number of compressed samples in each row.
+* `TIME_STEP_SEC`: The time difference between each simulated row, in seconds.
+* `NUM_ROWS`: The number of rows to produce at each update.
+
+**Example**:
+
+If the configuration is:
+
+> `P=SIM:`, `R=STAT`, `COUNT=2`, `COLUMNS=0x02`, `SCAN=1 second`, `TIME_STEP_SEC=0.001`, `NUM_ROWS=1000`, `NUM_SAMPLES=10`
+
+Then every second a V7 NTTable named `SIM:STAT` with `1000 rows` will be produced. Its columns will be:
+
+| Column             | Label                  | Type       |
+|--------------------|------------------------|------------|
+| `secondsPastEpoch` | `secondsPastEpoch`     | `uint32_t` |
+| `nanoseconds`      | `nanoseconds`          | `uint32_t` |
+| `pv0_num_samp`     | `SIM:STAT:0 num_samp`  | `double`   |
+| `pv0_min`          | `SIM:STAT:0 min`       | `double`   |
+| `pv0_max`          | `SIM:STAT:0 max`       | `double`   |
+| `pv0_mean`         | `SIM:STAT:0 mean`      | `double`   |
+| `pv0_std`          | `SIM:STAT:0 std`       | `double`   |
+| `pv0_rms`          | `SIM:STAT:0 rms`       | `double`   |
+| `pv1_num_samp`     | `SIM:STAT:1 num_samp`  | `double`   |
+| `pv1_min`          | `SIM:STAT:1 min`       | `double`   |
+| `pv1_max`          | `SIM:STAT:1 max`       | `double`   |
+| `pv1_mean`         | `SIM:STAT:1 mean`      | `double`   |
+| `pv1_std`          | `SIM:STAT:1 std`       | `double`   |
+| `pv1_rms`          | `SIM:STAT:1 rms`       | `double`   |
 
 The timestamps between rows will be 1 millisecond apart.
 
