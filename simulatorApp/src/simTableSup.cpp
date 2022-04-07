@@ -5,6 +5,7 @@
 #include <errlog.h>
 #include <dbAccess.h>
 #include <alarm.h>
+#include <devSup.h>
 
 #include <vector>
 #include <iostream>

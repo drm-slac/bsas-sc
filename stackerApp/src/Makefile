@@ -5,7 +5,8 @@ include $(TOP)/configure/CONFIG
 PROD_IOC = stacker
 DBD += stacker.dbd
 
-USR_CPPFLAGS += -DUSE_TYPED_RSET -DUSE_TYPED_DSET
+USR_CPPFLAGS += -DUSE_TYPED_RSET
+#USR_CPPFLAGS += -DUSE_TYPED_DSET # Not supported by EPICS 7.0.3
 
 stacker_DBD += base.dbd stackerSup.dbd pvxsIoc.dbd
 

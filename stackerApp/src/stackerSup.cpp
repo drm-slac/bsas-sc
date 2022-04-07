@@ -5,6 +5,7 @@
 #include <errlog.h>
 #include <dbAccess.h>
 #include <alarm.h>
+#include <devSup.h>
 
 #include <vector>
 #include <iostream>
@@ -18,6 +19,15 @@
 #include <tab/nttable.h>
 #include <tab/util.h>
 #include <tab/timetable.h>
+
+#ifndef dbGetAlarmMsg
+#  define dbGetAlarmMsg(LINK, STAT, SEVR, BUF, BUFLEN) dbGetAlarm(LINK, STAT, SEVR)
+#endif
+#ifndef dbGetTimeStampTag
+typedef epicsUInt64 epicsUTag;
+#  define dbGetTimeStampTag(LINK, STAMP, TAG) dbGetTimeStamp(LINK, STAMP)
+#endif
+
 
 DEFINE_LOGGER(LOG, "stacker");
 

@@ -8,9 +8,21 @@
 
 #include <epicsTime.h>
 #include <epicsMutex.h>
+#include <epicsVersion.h>
 
 #include <pvxs/log.h>
 #include <pvxs/sharedArray.h>
+
+#if EPICS_VERSION_INT < VERSION_INT(7, 0, 6, 1)
+static epicsInt64 epicsTimeDiffInNS (const epicsTimeStamp *pLeft, const epicsTimeStamp *pRight)
+{
+    static const epicsUInt32 nSecPerSec = 1000000000u;
+    epicsInt64 delta = epicsInt64(pLeft->secPastEpoch) - pRight->secPastEpoch;
+    delta *= nSecPerSec;
+    delta += epicsInt64(pLeft->nsec) - pRight->nsec;
+    return delta;
+}
+#endif
 
 DEFINE_LOGGER(LOG, "taligntable");
 
