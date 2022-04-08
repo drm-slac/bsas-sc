@@ -1,42 +1,19 @@
 TOP=../..
 
 include $(TOP)/configure/CONFIG
-#----------------------------------------
-#  ADD MACRO DEFINITIONS AFTER THIS LINE
-#=============================
 
-#=============================
-# Build the IOC application
+PROD = writer
 
-PROD_IOC = writer
-# writer.dbd will be created and installed
-DBD += writer.dbd
+writer_LIBS += pvxs Com
+writer_LIBS += common nttable
 
-# writer.dbd will be made up from these files:
-writer_DBD += base.dbd
+writer_SRCS += writerMain.cpp writer.cpp
 
-# Include dbd files from all support applications:
-#writer_DBD += xxx.dbd
-
-# Add all the support libraries needed by this IOC
-#writer_LIBS += xxx
-
-# writer_registerRecordDeviceDriver.cpp derives from writer.dbd
-writer_SRCS += writer_registerRecordDeviceDriver.cpp
-
-# Build the main IOC entry point on workstation OSs.
-writer_SRCS_DEFAULT += writerMain.cpp
-writer_SRCS_vxWorks += -nil-
-
-# Add support from base/src/vxWorks if needed
-#writer_OBJS_vxWorks += $(EPICS_BASE_BIN)/vxComLibrary
-
-# Finally link to the EPICS Base libraries
-writer_LIBS += $(EPICS_BASE_IOC_LIBS)
-
-#===========================
+# HDF5 dependency (a bit hacky)
+HDF5_L = $(shell pkg-config --libs-only-l hdf5)
+HDF5 = $(HDF5_L:-l%=%)
+writer_SYS_LIBS += $(HDF5)
+USR_INCLUDES += $(shell pkg-config --cflags-only-I hdf5)
+USR_LDFLAGS += $(shell pkg-config --libs-only-L hdf5)
 
 include $(TOP)/configure/RULES
-#----------------------------------------
-#  ADD RULES AFTER THIS LINE
-

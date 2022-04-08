@@ -120,6 +120,8 @@ private:
     {}
 
 public:
+    static TimeTableValue from(pvxs::Value v, bool validate = false);
+
     pvxs::Value get() const {
         return value_;
     }

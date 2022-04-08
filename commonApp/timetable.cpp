@@ -119,7 +119,7 @@ TimeTableValue TimeTable::create() const {
 
 TimeTableValue TimeTable::wrap(pvxs::Value value, bool validate) const {
     if (validate && !is_valid(value))
-        throw "";
+        throw "Value is of incompatible type";
 
     return TimeTableValue(*this, value);
 }
@@ -145,7 +145,6 @@ TimeTableScalar::TimeTableScalar(Config config)
 TimeTableStat::TimeTableStat()
 : TimeTable({ NUM_SAMP, MIN, MAX, MEAN, STD, RMS })
 {}
-
 
 } // namespace tabulator
 
