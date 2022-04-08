@@ -31,4 +31,6 @@ commonApp_DEPEND_DIRS += nttableApp
 stackerApp_DEPEND_DIRS += commonApp
 mergerApp_DEPEND_DIRS += commonApp
 
+USR_CPPFLAGS += -std-c++11
+
 include $(TOP)/configure/RULES_TOP

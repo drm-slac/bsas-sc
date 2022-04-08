@@ -5,9 +5,6 @@ include $(TOP)/configure/CONFIG
 PROD_IOC = simulator
 DBD += simulator.dbd
 
-USR_CPPFLAGS += -DUSE_TYPED_RSET
-#USR_CPPFLAGS += -DUSE_TYPED_DSET # Not supported by EPICS 7.0.3
-
 simulator_DBD += base.dbd
 simulator_DBD += menuScan.dbd
 simulator_DBD += PVAServerRegister.dbd

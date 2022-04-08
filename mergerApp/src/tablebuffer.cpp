@@ -107,7 +107,7 @@ std::vector<pvxs::shared_array<void>> TableBuffer::allocate_containers(size_t nu
 
 void TableBuffer::push(pvxs::Value value) {
     if (!type_)
-        type_ = std::make_unique<TimeTable>(value);
+        type_.reset(new TimeTable(value));
 
     buffer_.emplace_back(type_->wrap(value, true));
 

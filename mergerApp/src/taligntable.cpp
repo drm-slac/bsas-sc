@@ -78,7 +78,7 @@ void TimeAlignedTable::initialize() {
         ++idx;
     }
 
-    type_ = std::make_unique<TimeTable>(data_columns);
+    type_.reset(new TimeTable(data_columns));
 }
 
 TimeAlignedTable::TimeAlignedTable(const std::vector<std::string> & pvlist, epicsUInt32 alignment_usec)
