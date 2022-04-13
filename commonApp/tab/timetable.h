@@ -23,6 +23,7 @@ public:
     static const nt::NTTable::ColumnSpec NANOSECONDS;
 
     const std::vector<nt::NTTable::ColumnSpec> columns;
+    const std::vector<nt::NTTable::ColumnSpec> time_columns;
     const std::vector<nt::NTTable::ColumnSpec> data_columns;
     const nt::NTTable nttable;
 

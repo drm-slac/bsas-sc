@@ -35,8 +35,8 @@ static std::vector<nt::NTTable::ColumnSpec> from_data_columns(const std::vector<
 }
 
 TimeTable::TimeTable(const std::vector<nt::NTTable::ColumnSpec> & data_columns)
-: columns(from_data_columns(data_columns)), data_columns(columns.begin() + 2, columns.end()),
-  nttable(columns.begin(), columns.end())
+: columns(from_data_columns(data_columns)), time_columns(columns.begin(), columns.begin() + 2),
+  data_columns(columns.begin() + 2, columns.end()), nttable(columns.begin(), columns.end())
 {}
 
 static std::vector<nt::NTTable::ColumnSpec> from_value(const pvxs::Value & value) {

@@ -30,7 +30,7 @@ iocBoot_DEPEND_DIRS += $(filter %App,$(DIRS))
 commonApp_DEPEND_DIRS += nttableApp
 stackerApp_DEPEND_DIRS += commonApp
 mergerApp_DEPEND_DIRS += commonApp
-writerApp_DEPEND_DIRS += commonApp
+writerApp_DEPEND_DIRS += commonApp highfiveApp
 
 USR_CPPFLAGS += -std-c++11
 
