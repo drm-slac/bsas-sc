@@ -13,12 +13,17 @@
 
 DEFINE_LOGGER(LOG, "writer");
 
-static const char *META_GROUP = "/meta";
-static const char *META_PVNAMES = "pvnames";
-static const char *META_COLUMN_PREFIXES = "column_prefixes";
-static const char *META_LABELS = "labels";
-static const char *META_COLUMNS = "columns";
-static const char *META_TYPES = "pvxs_types";
+static const std::string META_GROUP = "/meta";
+static const std::string META_PVNAMES = "pvnames";
+static const std::string META_COLUMN_PREFIXES = "column_prefixes";
+static const std::string META_LABELS = "labels";
+static const std::string META_COLUMNS = "columns";
+static const std::string META_TYPES = "pvxs_types";
+
+static const std::string ATTR_INPUT_PV = "Input PV";
+static const std::string ATTR_SIGNAL = "Signal";
+static const std::string ATTR_LABEL = "NTTable label";
+static const std::string ATTR_COLUMN = "NTTable column";
 
 static const char *DATA_GROUP = "/data";
 
@@ -65,6 +70,8 @@ void Writer::build_file_structure(size_t chunk_size) {
     epicsTimeStamp start, end;
     epicsTimeGetCurrent(&start);
 
+    file_->createAttribute(ATTR_INPUT_PV, input_pv_);
+
     H5::DataSetCreateProps props;
     props.add(H5::Chunking({chunk_size}));
 
@@ -92,15 +99,16 @@ void Writer::build_file_structure(size_t chunk_size) {
     }
 
     for (auto c : type_->time_columns) {
-        datasets_.emplace(
+        auto ds = data_group.createDataSet(
             c.name,
-            data_group.createDataSet(
-                c.name,
-                H5::DataSpace({0}, {H5::DataSpace::UNLIMITED}),
-                pvxs_to_h5_type(c.type_code),
-                props
-            )
+            H5::DataSpace({0}, {H5::DataSpace::UNLIMITED}),
+            pvxs_to_h5_type(c.type_code),
+            props
         );
+
+        ds.createAttribute(ATTR_LABEL, c.label);
+        ds.createAttribute(ATTR_COLUMN, c.name);
+        datasets_.emplace(c.name, ds);
     }
 
     for (auto c : type_->data_columns) {
@@ -114,21 +122,24 @@ void Writer::build_file_structure(size_t chunk_size) {
             pvnames_set.insert(pvname);
             column_prefixes.push_back(column_prefix);
 
-            data_group.createGroup(column_prefix);
+            auto g = data_group.createGroup(column_prefix);
+            g.createAttribute(ATTR_SIGNAL, pvname);
         }
 
         auto group = data_group.getGroup(column_prefix);
 
-        datasets_.emplace(
-            c.name,
-
-            group.createDataSet(
-                column_suffix,
-                H5::DataSpace({0}, {H5::DataSpace::UNLIMITED}),
-                pvxs_to_h5_type(c.type_code),
-                props
-            )
+        auto ds = group.createDataSet(
+            column_suffix,
+            H5::DataSpace({0}, {H5::DataSpace::UNLIMITED}),
+            pvxs_to_h5_type(c.type_code),
+            props
         );
+
+        ds.createAttribute(ATTR_LABEL, c.label);
+        ds.createAttribute(ATTR_COLUMN, c.name);
+
+        datasets_.emplace(c.name, ds);
+
     }
 
     // Fill meta datasets
@@ -142,8 +153,8 @@ void Writer::build_file_structure(size_t chunk_size) {
     log_debug_printf(LOG, "Built file structure in %.3f sec\n", epicsTimeDiffInSeconds(&end, &start));
 }
 
-Writer::Writer(const std::string & path)
-:type_(nullptr), file_(new H5::File(path, H5F_ACC_EXCL)) {
+Writer::Writer(const std::string & input_pv, const std::string & path)
+:input_pv_(input_pv), type_(nullptr), file_(new H5::File(path, H5F_ACC_EXCL)) {
     log_debug_printf(LOG, "Writing to file '%s'\n", path.c_str());
 }
 

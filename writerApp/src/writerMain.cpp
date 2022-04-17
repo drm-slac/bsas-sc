@@ -140,7 +140,7 @@ int main (int argc, char *argv[]) {
     enum StopReason stop_reason;
 
     try {
-        tabulator::Writer writer(output_file);
+        tabulator::Writer writer(input_pv, output_file);
 
         for(;;) {
             double elapsed = seconds_since(start);

@@ -12,6 +12,7 @@ namespace tabulator {
 class Writer {
 
 private:
+    std::string input_pv_;
     std::unique_ptr<TimeTable> type_;
     std::unique_ptr<HighFive::File> file_;
     std::map<std::string, HighFive::DataSet> datasets_;
@@ -19,7 +20,7 @@ private:
     void build_file_structure(size_t chunk_size);
 
 public:
-    Writer(const std::string & path);
+    Writer(const std::string & input_pv, const std::string & path);
 
     void write(pvxs::Value value);
 };
