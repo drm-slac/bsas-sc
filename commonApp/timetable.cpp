@@ -70,8 +70,8 @@ static std::vector<nt::NTTable::ColumnSpec> from_value(const pvxs::Value & value
 }
 
 TimeTable::TimeTable(const pvxs::Value & value)
-: columns(from_value(value)), data_columns(columns.begin() + 2, columns.end()),
-  nttable(columns.begin(), columns.end())
+: columns(from_value(value)), time_columns(columns.begin(), columns.begin() + 2),
+  data_columns(columns.begin() + 2, columns.end()), nttable(columns.begin(), columns.end())
 {}
 
 bool TimeTable::is_valid(const pvxs::Value & value) const {
@@ -122,6 +122,34 @@ TimeTableValue TimeTable::wrap(pvxs::Value value, bool validate) const {
         throw "Value is of incompatible type";
 
     return TimeTableValue(*this, value);
+}
+
+static bool parts(const std::string & name, char sep, std::string * prefix, std::string * suffix) {
+    if (!prefix && !suffix)
+        return true;
+
+    auto i = name.find(sep);
+
+    if (i == std::string::npos)
+        return false;
+
+    if (prefix)
+        *prefix = name.substr(0, i);
+
+    if (suffix)
+        *suffix = name.substr(i+1);
+
+    return true;
+}
+
+void TimeTable::colname_parts(const std::string & colname, std::string * prefix, std::string * suffix) {
+    if (!parts(colname, '_', prefix, suffix))
+        throw "Invalid column name (must contain an underscore)";
+}
+
+void TimeTable::pvname_parts(const std::string & pvname, std::string * prefix, std::string * suffix) {
+    if (!parts(pvname, ' ', prefix, suffix))
+        throw "Invalid label name (must contain a space)";
 }
 
 static std::vector<nt::NTTable::ColumnSpec> from_columns_config(TimeTableScalar::Config config) {

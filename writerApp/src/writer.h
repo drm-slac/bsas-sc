@@ -5,6 +5,8 @@
 
 #include <highfive/H5File.hpp>
 
+#include <map>
+
 namespace tabulator {
 
 class Writer {
@@ -12,6 +14,9 @@ class Writer {
 private:
     std::unique_ptr<TimeTable> type_;
     std::unique_ptr<HighFive::File> file_;
+    std::map<std::string, HighFive::DataSet> datasets_;
+
+    void build_file_structure(size_t chunk_size);
 
 public:
     Writer(const std::string & path);

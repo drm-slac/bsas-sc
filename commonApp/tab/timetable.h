@@ -33,6 +33,9 @@ public:
     bool is_valid(const pvxs::Value & value) const;
     TimeTableValue create() const;
     TimeTableValue wrap(pvxs::Value value, bool validate = false) const;
+
+    static void colname_parts(const std::string & colname, std::string * prefix, std::string * suffix);
+    static void pvname_parts(const std::string & colname, std::string * prefix, std::string * suffix);
 };
 
 struct TimeTableScalar : public TimeTable {

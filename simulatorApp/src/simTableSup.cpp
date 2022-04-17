@@ -177,7 +177,7 @@ public:
             std::vector<double> fast_samples(num_samp);
 
             double min = std::numeric_limits<double>::max();
-            double max = std::numeric_limits<double>::min();
+            double max = -std::numeric_limits<double>::max();
             double sum = 0.0;
             double sumsq = 0.0;
 

@@ -185,5 +185,3 @@ int main (int argc, char *argv[]) {
     log_printf(LOG, is_err(stop_reason) ? pvxs::Level::Err : pvxs::Level::Info, "Ending. Reason: %s\n", STOP_REASON_STR[stop_reason]);
     return is_err(stop_reason) ? 1 : 0;
 }
-
-//https://github.com/BlueBrain/HighFive
