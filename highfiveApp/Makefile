@@ -52,3 +52,10 @@ INC += highfive/h5easy_bits/H5Easy_vector.hpp
 INC += highfive/h5easy_bits/H5Easy_xtensor.hpp
 
 include $(TOP)/configure/RULES
+
+build: apply_patches
+
+apply_patches:
+	@echo "Patching files"
+# Patch H5Converter_misc.hpp for older GCC (< 5)
+	-patch -d $(INSTALL_LOCATION) -p1 -N < ../is_trivially_copyable.patch
