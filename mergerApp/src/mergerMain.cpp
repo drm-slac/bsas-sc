@@ -246,36 +246,6 @@ public:
     virtual ~Reactor() {}
 };
 
-class Server : public Runnable {
-private:
-    pvxs::server::Server server_;
-
-public:
-    Server(
-        std::shared_ptr<pvxs::MPMCFIFO<Runnable*>> dead,
-        const std::string & pvname, pvxs::server::SharedPV & pv
-    ) : Runnable(typeid(Server).name(), dead),
-      server_(pvxs::server::Config::fromEnv().build())
-    {
-        log_info_printf(SERVER_LOG, "Creating server for PV: %s\n", pvname.c_str());
-        server_.addPV(pvname, pv);
-    }
-
-    virtual void run() {
-        log_info_printf(SERVER_LOG, "Starting\n%s", "");
-        server_.run();
-        stopped();
-        log_info_printf(SERVER_LOG, "Ending\n%s", "");
-    }
-
-    void stop(double delay) {
-        server_.stop();
-        Runnable::stop(delay);
-    }
-
-    virtual ~Server() {}
-};
-
 static std::vector<std::string> pvlist_from_file(const std::string & filename) {
     // Open input file and fetch PV names
     std::ifstream filestream(filename);
@@ -363,7 +333,9 @@ int main (int argc, char *argv[]) {
     // Prepare workers
     Listener listener(dead_queue, pvlist, taligned_table);
     Reactor reactor(dead_queue, taligned_table, period, timeout, pv);
-    Server server(dead_queue, pvname, pv);
+
+    pvxs::server::Server server(pvxs::server::Config::fromEnv().build());
+    server.addPV(pvname, pv);
 
     // Run workers
     listener.start();
@@ -374,15 +346,16 @@ int main (int argc, char *argv[]) {
     // CTRL+C is handled by the Server thread
     auto dead = dead_queue->pop();
 
+    // Close the PV, stop the server
+    pv.close();
+    server.stop();
+
     // Ask other threads to stop
     if (dynamic_cast<Runnable*>(&listener) != dead)
         listener.stop(1.0);
 
     if (dynamic_cast<Runnable*>(&reactor) != dead)
         reactor.stop(1.0);
-
-    if (dynamic_cast<Runnable*>(&server) != dead)
-        server.stop(1.0);
 
     log_info_printf(LOG, "Exiting%s\n", "");
 
