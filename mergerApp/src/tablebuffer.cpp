@@ -8,7 +8,7 @@ namespace ts = util::ts;
 
 // TODO: move timespan to ts
 const epicsUInt32 TimeSpan::MAX_U32 = std::numeric_limits<epicsUInt32>::max();
-const epicsTimeStamp TimeSpan::MAX_TS = { MAX_U32, MAX_U32 };
+const epicsTimeStamp TimeSpan::MAX_TS = { MAX_U32, 999999999 };
 const epicsTimeStamp TimeSpan::MIN_TS = {0, 0};
 
 TimeSpan::TimeSpan() {
