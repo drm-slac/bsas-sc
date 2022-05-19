@@ -43,14 +43,14 @@ enum Config : uint8_t {
     STAT                = 0x10,
 };
 
-static inline std::string column_name(const std::string & prefix, const std::string & suffix) {
+static inline std::string column_name(const std::string & prefix, const std::string & suffix, const std::string & sep) {
     // TODO: check if prefix is malformed (and throw)
     std::size_t idx = prefix.rfind(":");
-    return std::string("pv") + prefix.substr(idx + 1) + "_" + suffix;
+    return std::string("pv") + prefix.substr(idx + 1) + sep + suffix;
 }
 
-static inline std::string label_name(const std::string & prefix, const std::string & suffix) {
-    return prefix + " " + suffix;
+static inline std::string label_name(const std::string & prefix, const std::string & suffix, const std::string & sep) {
+    return prefix + sep + suffix;
 }
 
 struct SimSource {
@@ -164,11 +164,11 @@ public:
 
     TimeTableValue simulate(size_t num_rows) {
 
+        pvxs::shared_array<TimeTableStat::VAL_T> val_col(num_rows);
         pvxs::shared_array<TimeTableStat::NUM_SAMP_T> num_samp_col(num_rows, static_cast<TimeTableStat::NUM_SAMP_T>(num_samp));
         pvxs::shared_array<TimeTableStat::MIN_T> min_col(num_rows);
         pvxs::shared_array<TimeTableStat::MAX_T> max_col(num_rows);
         pvxs::shared_array<TimeTableStat::MEAN_T> mean_col(num_rows);
-        pvxs::shared_array<TimeTableStat::STD_T> std_col(num_rows);
         pvxs::shared_array<TimeTableStat::RMS_T> rms_col(num_rows);
 
         double sub_step_sec = step_sec / num_samp;
@@ -190,19 +190,12 @@ public:
             }
 
             double mean = sum / num_samp;
-            double std = 0;
-
-            for (const auto & sample : fast_samples)
-                std += std::pow(sample - mean, 2);
-
-            std = std::sqrt(std / num_samp);
-
             double rms = std::sqrt(sumsq / num_samp);
 
+            val_col[row] = mean;
             min_col[row] = min;
             max_col[row] = max;
             mean_col[row] = mean;
-            std_col[row] = std;
             rms_col[row] = rms;
 
             ++t_;
@@ -210,11 +203,11 @@ public:
 
         auto output = type->create();
 
+        output.set_column(TimeTableStat::VAL_COL, val_col.freeze());
         output.set_column(TimeTableStat::NUM_SAMP_COL, num_samp_col.freeze());
         output.set_column(TimeTableStat::MIN_COL, min_col.freeze());
         output.set_column(TimeTableStat::MAX_COL, max_col.freeze());
         output.set_column(TimeTableStat::MEAN_COL, mean_col.freeze());
-        output.set_column(TimeTableStat::STD_COL, std_col.freeze());
         output.set_column(TimeTableStat::RMS_COL, rms_col.freeze());
 
         return output;
@@ -235,12 +228,12 @@ static std::vector<std::string> gen_source_names(const std::string & prefix, siz
     return names;
 }
 
-static TimeTable gen_type(const std::vector<std::string> & names, const std::unique_ptr<SimSource> & source) {
+static TimeTable gen_type(const std::vector<std::string> & names, const std::unique_ptr<SimSource> & source, const std::string & label_sep, const std::string & col_sep) {
     std::vector<NTTable::ColumnSpec> data_columns;
 
     for (const auto & name : names)
         for (const auto & col : source->type->data_columns)
-            data_columns.emplace_back(col.type_code, column_name(name, col.name), label_name(name, col.label));
+            data_columns.emplace_back(col.type_code, column_name(name, col.name, col_sep), label_name(name, col.label, label_sep));
 
     return TimeTable(data_columns);
 }
@@ -262,9 +255,9 @@ struct SimTable {
     // State
     epicsTimeStamp ts;
 
-    SimTable(const char *name, double step_sec, size_t count, std::unique_ptr<SimSource> && source, const std::string & output_pv_name)
+    SimTable(const char *name, double step_sec, size_t count, std::unique_ptr<SimSource> && source, const std::string & output_pv_name, const std::string & label_sep, const std::string & col_sep)
     :name(name), step_sec(step_sec), source_names(gen_source_names(output_pv_name, count)), source(std::move(source)),
-     type(gen_type(source_names, this->source)),
+     type(gen_type(source_names, this->source, label_sep, col_sep)),
      pv(pvxs::server::SharedPV::buildReadonly())
     {
         epicsTimeGetCurrent(&ts);
@@ -333,12 +326,16 @@ static long sim_init(aSubRecord *prec) {
     CHECK_INP(ftc, INPC, LONG);     // Number of compressed samples (if using STAT simulation)
     CHECK_INP(ftd, INPD, DOUBLE);   // Time Step (sec)
     CHECK_INP(fte, INPE, LONG);     // Number of rows in each update
+    CHECK_INP(ftf, INPF, STRING);   // Label separator (between PV name and column label)
+    CHECK_INP(ftg, INPG, STRING);   // Column separator (PV identifier and column name)
     #undef CHECK_INP
 
     long num_pvs = *static_cast<long*>(prec->a);
     long config = *static_cast<long*>(prec->b);
     long num_samp = *static_cast<long*>(prec->c);
     double step_sec = *static_cast<double*>(prec->d);
+    const char *label_sep = static_cast<const char *>(prec->f);
+    const char *col_sep = static_cast<const char *>(prec->g);
 
     // Assume our name is xxxx_ASUB, chop off the _ASUB suffix to derive the V7 PV name
     std::string output_pv_name(prec->name);
@@ -348,9 +345,9 @@ static long sim_init(aSubRecord *prec) {
         output_pv_name.resize(found);
     }
 
-    log_debug_printf(LOG, "sim_init[%s]: Simulating %ld %s PVs, step=%.3f sec (stat samples=%ld) to output=%s\n",
+    log_debug_printf(LOG, "sim_init[%s]: Simulating %ld %s PVs, step=%.3f sec (stat samples=%ld) to output=%s, label separator='%s', column separator='%s'\n",
         prec->name, num_pvs, (config & Config::STAT) != 0 ? "statistics" : "scalar",
-        step_sec, num_samp, output_pv_name.c_str());
+        step_sec, num_samp, output_pv_name.c_str(), label_sep, col_sep);
 
     std::unique_ptr<SimSource> source;
 
@@ -367,7 +364,7 @@ static long sim_init(aSubRecord *prec) {
         source.reset(new SimSourceScalar(scalar_config, step_sec));
     }
 
-    SimTable *sim = new SimTable(prec->name, step_sec, num_pvs, std::move(source), output_pv_name);
+    SimTable *sim = new SimTable(prec->name, step_sec, num_pvs, std::move(source), output_pv_name, label_sep, col_sep);
     log_debug_printf(LOG, "created simtable%s\n", "");
     prec->dpvt = static_cast<void*>(sim);
 

@@ -58,4 +58,5 @@ build: apply_patches
 apply_patches:
 	@echo "Patching files"
 # Patch H5Converter_misc.hpp for older GCC (< 5)
+# TODO: I strongly advise that this is removed when using GCC >= 5
 	-patch -d $(INSTALL_LOCATION) -p1 -N < ../is_trivially_copyable.patch

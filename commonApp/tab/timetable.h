@@ -80,32 +80,32 @@ struct TimeTableScalar : public TimeTable {
 };
 
 struct TimeTableStat : public TimeTable {
+    typedef double VAL_T;
     typedef double NUM_SAMP_T;
     typedef double MIN_T;
     typedef double MAX_T;
     typedef double MEAN_T;
-    typedef double STD_T;
     typedef double RMS_T;
 
+    static const std::string VAL_COL;
     static const std::string NUM_SAMP_COL;
     static const std::string MIN_COL;
     static const std::string MAX_COL;
     static const std::string MEAN_COL;
-    static const std::string STD_COL;
     static const std::string RMS_COL;
 
+    static const std::string VAL_LABEL;
     static const std::string NUM_SAMP_LABEL;
     static const std::string MIN_LABEL;
     static const std::string MAX_LABEL;
     static const std::string MEAN_LABEL;
-    static const std::string STD_LABEL;
     static const std::string RMS_LABEL;
 
+    static const nt::NTTable::ColumnSpec VAL;
     static const nt::NTTable::ColumnSpec NUM_SAMP;
     static const nt::NTTable::ColumnSpec MIN;
     static const nt::NTTable::ColumnSpec MAX;
     static const nt::NTTable::ColumnSpec MEAN;
-    static const nt::NTTable::ColumnSpec STD;
     static const nt::NTTable::ColumnSpec RMS;
 
     TimeTableStat();

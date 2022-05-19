@@ -33,5 +33,13 @@ record(aSub, "$(P)$(R)_ASUB") {
     # Number of rows per update
     field(FTE,  "LONG")
     field(INPE, {const: $(NUM_ROWS)})
+
+    # Label separator
+    field(FTF,  "STRING")
+    field(INPF, {const: "$(LABEL_SEP=".")"})
+
+    # Column separator
+    field(FTG,  "STRING")
+    field(INPG, {const: "$(COL_SEP="_")"})
 }
 

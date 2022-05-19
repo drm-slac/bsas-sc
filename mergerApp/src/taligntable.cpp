@@ -30,15 +30,6 @@ typedef epicsGuard<epicsMutex> Guard;
 
 namespace tabulator {
 
-static nt::NTTable::ColumnSpec prefixed_colspec(size_t idx, const std::string & pvname, const nt::NTTable::ColumnSpec & spec) {
-    char colprefix_buf[256] = {};
-    epicsSnprintf(colprefix_buf, sizeof(colprefix_buf), "pv%05lu", idx);
-    std::string colprefix(colprefix_buf);
-
-    return {
-        spec.type_code, colprefix + "_" + spec.name, pvname + " " + spec.label
-    };
-}
 
 TimeBounds::TimeBounds() {
     reset();
@@ -50,6 +41,16 @@ void TimeBounds::reset() {
     earliest_end = TimeSpan::MAX_TS;
     latest_start = TimeSpan::MIN_TS;
     latest_end = TimeSpan::MIN_TS;
+}
+
+nt::NTTable::ColumnSpec TimeAlignedTable::prefixed_colspec(size_t idx, const std::string & pvname, const nt::NTTable::ColumnSpec & spec) {
+    char colprefix_buf[256] = {};
+    epicsSnprintf(colprefix_buf, sizeof(colprefix_buf), "pv%05lu", idx);
+    std::string colprefix(colprefix_buf);
+
+    return {
+        spec.type_code, colprefix + col_sep_ + spec.name, pvname + label_sep_ + spec.label
+    };
 }
 
 void TimeAlignedTable::initialize() {
@@ -81,8 +82,10 @@ void TimeAlignedTable::initialize() {
     type_.reset(new TimeTable(data_columns));
 }
 
-TimeAlignedTable::TimeAlignedTable(const std::vector<std::string> & pvlist, epicsUInt32 alignment_usec)
-: pvlist_(pvlist), alignment_usec_(alignment_usec), lock_(), buffers_(pvlist.size()), type_()
+TimeAlignedTable::TimeAlignedTable(const std::vector<std::string> & pvlist, epicsUInt32 alignment_usec,
+    const std::string & label_sep, const std::string & col_sep)
+: pvlist_(pvlist), alignment_usec_(alignment_usec), label_sep_(label_sep), col_sep_(col_sep), lock_(),
+  buffers_(pvlist.size()), type_()
 {
     log_debug_printf(LOG, "TimeAlignedTable(%lu PVs, align=%u us)\n", pvlist.size(), alignment_usec);
     assert(alignment_usec > 0);

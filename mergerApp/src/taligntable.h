@@ -53,15 +53,20 @@ class TimeAlignedTable {
 private:
     std::vector<std::string> pvlist_;
     epicsUInt32 alignment_usec_;
+    const std::string label_sep_;
+    const std::string col_sep_;
 
     mutable epicsMutex lock_;
     std::vector<TableBuffer> buffers_;
     std::unique_ptr<TimeTable> type_;
 
     void initialize();
+    nt::NTTable::ColumnSpec prefixed_colspec(size_t idx, const std::string & pvname,
+        const nt::NTTable::ColumnSpec & spec);
 
 public:
-    TimeAlignedTable(const std::vector<std::string> & pvlist, epicsUInt32 alignment_usec);
+    TimeAlignedTable(const std::vector<std::string> & pvlist, epicsUInt32 alignment_usec,
+        const std::string & label_sep, const std::string & col_sep);
 
     // Returns true if all inner buffers were initialized (got at least 1 update),
     // false otherwise

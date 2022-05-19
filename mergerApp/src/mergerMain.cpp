@@ -264,6 +264,8 @@ int main (int argc, char *argv[]) {
     double period;
     double timeout;
     std::string pvname;
+    std::string label_sep = ".";
+    std::string col_sep = "_";
 
     pvxs::logger_config_env();
 
@@ -286,7 +288,15 @@ int main (int argc, char *argv[]) {
 
         clipp::required("--pvname")
             .doc("name of the output PV")
-            & clipp::value("pvname", pvname)
+            & clipp::value("pvname", pvname),
+
+        clipp::option("--label-sep")
+            .doc(std::string("separator between PV name and column name in labels. Default: '") + label_sep + "'")
+            & clipp::value("label_sep", label_sep),
+
+        clipp::option("--column-sep")
+            .doc(std::string("separator between PV identifier and original column name. Default: '") + col_sep + "'")
+            & clipp::value("col_sep", col_sep)
     );
 
     auto man_page = clipp::make_man_page(cli, argv[0]);
@@ -324,20 +334,23 @@ int main (int argc, char *argv[]) {
     log_info_printf(LOG, "  period=%.6f s\n", period);
     log_info_printf(LOG, "  timeout=%.6f s\n", timeout);
     log_info_printf(LOG, "  pvname=%s\n", pvname.c_str());
+    log_info_printf(LOG, "  label-sep=%s\n", label_sep.c_str());
+    log_info_printf(LOG, "  column-sep=%s\n", col_sep.c_str());
 
     // Shared objects
     auto dead_queue = std::make_shared<pvxs::MPMCFIFO<Runnable*>>();
-    auto taligned_table(std::make_shared<TimeAlignedTable>(pvlist, alignment));
+    auto taligned_table(std::make_shared<TimeAlignedTable>(pvlist, alignment, label_sep, col_sep));
     pvxs::server::SharedPV pv(pvxs::server::SharedPV::buildReadonly());
 
     // Prepare workers
     Listener listener(dead_queue, pvlist, taligned_table);
     Reactor reactor(dead_queue, taligned_table, period, timeout, pv);
 
+    // Prepare server
     pvxs::server::Server server(pvxs::server::Config::fromEnv().build());
     server.addPV(pvname, pv);
 
-    // Run workers
+    // Run workers and server
     listener.start();
     reactor.start();
     server.start();
