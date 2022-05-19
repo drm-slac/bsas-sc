@@ -51,12 +51,12 @@ Defines three classes that are used throughout the project.
 
 | Name and Label | Type     | Notes                         |
 |----------------|----------|-------------------------------|
-| `num_samples`  | `double` | Number of compressed samples  |
-| `min`          | `double` | Minimum value in samples      |
-| `max`          | `double` | Maximum value in samples      |
-| `mean`         | `double` | Mean value of samples         |
-| `std`          | `double` | Standard deviation of samples |
-| `rms`          | `double` | Root mean square of samples   |
+| `VAL`          | `double` | Representative sample         |
+| `CNT`          | `double` | Number of compressed samples  |
+| `MIN`          | `double` | Minimum value in samples      |
+| `MAX`          | `double` | Maximum value in samples      |
+| `AVG`          | `double` | Mean value of samples         |
+| `RMS`          | `double` | Standard deviation of samples |
 
 * `TimeTableValue`: a wrapper around `pvxs::Value`, with convenience methods to get/set its columns. Its "type" will be `TimeTable` or `TimeTableScalar`.
 
@@ -88,12 +88,14 @@ Simulates an NTTable with a configurable number of columns. It is meant to simul
 * `NUM_SAMPLES`: **Ignored**. See below
 * `TIME_STEP_SEC`: The time difference between each simulated row, in seconds.
 * `NUM_ROWS`: The number of rows to produce at each update.
+* `LABEL_SEP`: The separator to use when building labels. Default: `.`.
+* `COL_SEP`: The separator to use when building column names. Default: `_`.
 
 **Example**:
 
 If the configuration is:
 
-> `P=SIM:`, `R=TABLE`, `COUNT=2`, `COLUMNS=0x02`, `SCAN=1 second`, `TIME_STEP_SEC=0.001`, `NUM_ROWS=1000`
+> `P=SIM:`, `R=TABLE`, `COUNT=2`, `COLUMNS=0x02`, `SCAN=1 second`, `TIME_STEP_SEC=0.001`, `NUM_ROWS=1000`, `LABEL_SEP=.`, `COL_SEP=_`
 
 Then every second a V7 NTTable named `SIM:TABLE` with `1000 rows` will be produced. Its columns will be:
 
@@ -101,10 +103,10 @@ Then every second a V7 NTTable named `SIM:TABLE` with `1000 rows` will be produc
 |--------------------|------------------------|------------|
 | `secondsPastEpoch` | `secondsPastEpoch`     | `uint32_t` |
 | `nanoseconds`      | `nanoseconds`          | `uint32_t` |
-| `pv0_value`        | `SIM:TABLE:0 value`    | `double`   |
-| `pv0_severity`     | `SIM:TABLE:0 severity` | `uint16_t` |
-| `pv1_value`        | `SIM:TABLE:1 value`    | `double`   |
-| `pv1_severity`     | `SIM:TABLE:1 severity` | `uint16_t` |
+| `pv0_value`        | `SIM:TABLE:0.value`    | `double`   |
+| `pv0_severity`     | `SIM:TABLE:0.severity` | `uint16_t` |
+| `pv1_value`        | `SIM:TABLE:1.value`    | `double`   |
+| `pv1_severity`     | `SIM:TABLE:1.severity` | `uint16_t` |
 
 The timestamps between rows will be 1 millisecond apart.
 
@@ -123,7 +125,7 @@ Simulates an NTTable with statistics samples. It is meant to simulate statistica
 
 If the configuration is:
 
-> `P=SIM:`, `R=STAT`, `COUNT=2`, `COLUMNS=0x02`, `SCAN=1 second`, `TIME_STEP_SEC=0.001`, `NUM_ROWS=1000`, `NUM_SAMPLES=10`
+> `P=SIM:`, `R=STAT`, `COUNT=2`, `COLUMNS=0x02`, `SCAN=1 second`, `TIME_STEP_SEC=0.001`, `NUM_ROWS=1000`, `NUM_SAMPLES=10`, `LABEL_SEP=.`, `COL_SEP=_`
 
 Then every second a V7 NTTable named `SIM:STAT` with `1000 rows` will be produced. Its columns will be:
 
@@ -131,18 +133,18 @@ Then every second a V7 NTTable named `SIM:STAT` with `1000 rows` will be produce
 |--------------------|------------------------|------------|
 | `secondsPastEpoch` | `secondsPastEpoch`     | `uint32_t` |
 | `nanoseconds`      | `nanoseconds`          | `uint32_t` |
-| `pv0_num_samp`     | `SIM:STAT:0 num_samp`  | `double`   |
-| `pv0_min`          | `SIM:STAT:0 min`       | `double`   |
-| `pv0_max`          | `SIM:STAT:0 max`       | `double`   |
-| `pv0_mean`         | `SIM:STAT:0 mean`      | `double`   |
-| `pv0_std`          | `SIM:STAT:0 std`       | `double`   |
-| `pv0_rms`          | `SIM:STAT:0 rms`       | `double`   |
-| `pv1_num_samp`     | `SIM:STAT:1 num_samp`  | `double`   |
-| `pv1_min`          | `SIM:STAT:1 min`       | `double`   |
-| `pv1_max`          | `SIM:STAT:1 max`       | `double`   |
-| `pv1_mean`         | `SIM:STAT:1 mean`      | `double`   |
-| `pv1_std`          | `SIM:STAT:1 std`       | `double`   |
-| `pv1_rms`          | `SIM:STAT:1 rms`       | `double`   |
+| `pv0_VAL`          | `SIM:STAT:0.VAL`       | `double`   |
+| `pv0_CNT`          | `SIM:STAT:0.CNT`       | `double`   |
+| `pv0_MIN`          | `SIM:STAT:0.MIN`       | `double`   |
+| `pv0_MAX`          | `SIM:STAT:0.MAX`       | `double`   |
+| `pv0_AVG`          | `SIM:STAT:0.AVG`       | `double`   |
+| `pv0_RMS`          | `SIM:STAT:0.RMS`       | `double`   |
+| `pv1_VAL`          | `SIM:STAT:1.VAL`       | `double`   |
+| `pv1_CNT`          | `SIM:STAT:1.CNT`       | `double`   |
+| `pv1_MIN`          | `SIM:STAT:1.MIN`       | `double`   |
+| `pv1_MAX`          | `SIM:STAT:1.MAX`       | `double`   |
+| `pv1_AVG`          | `SIM:STAT:1.AVG`       | `double`   |
+| `pv1_RMS`          | `SIM:STAT:1.RMS`       | `double`   |
 
 The timestamps between rows will be 1 millisecond apart.
 
@@ -171,7 +173,8 @@ A standalone executable (not an IOC) that *merges* together different input NTTa
 $ ./bin/linux-x86_64/merger
 SYNOPSIS
         ./bin/linux-x86_64/merger --pvlist <pvlist> --alignment <alignment> --period <period>
-                                  --timeout <timeout> --pvname <pvname>
+                                  --timeout <timeout> --pvname <pvname> [--label-sep <label_sep>]
+                                  [--column-sep <col_sep>]
 
 OPTIONS
         --pvlist    file with list of input NTTable PVs to be merged (newline-separated)
@@ -179,6 +182,9 @@ OPTIONS
         --period    update publication period, in seconds
         --timeout   time window to wait for laggards, in seconds
         --pvname    name of the output PV
+        --label-sep separator between PV name and column name in labels. Default: '.'
+        --column-sep
+                    separator between PV identifier and original column name. Default: '_'
 ```
 
 ## highfiveApp
@@ -218,8 +224,8 @@ The `input_pv` is assumed to conform to `TimeTable`. The resulting HDF5 structur
 
 ```
 /meta/                  Group
-/meta/labels            Dataset<string>: the list of labels: e.g. ["secondsPastEpoch", "nanoseconds", "SIM:STAT:000 min", "SIM:STAT:000 max", ...].
-/meta/columns           Dataset<string>: the list of columns: e.g. ["secondsPastEpoch", "nanoseconds", "pv000", "pv000_min", "pv000_max", ...].
+/meta/labels            Dataset<string>: the list of labels: e.g. ["secondsPastEpoch", "nanoseconds", "SIM:STAT:000.MIN", "SIM:STAT:000.MAX", ...].
+/meta/columns           Dataset<string>: the list of columns: e.g. ["secondsPastEpoch", "nanoseconds", "pv000", "pv000_MIN", "pv000_MAX", ...].
 /meta/pvxs_types        Dataset<uint8_t>: the list of PVXS type codes for each column: e.g. [46, 46, 75, 75, ...].
 /meta/pvnames           Dataset<string>: the list of "signals": e.g. ["SIM:STAT:000", "SIM:STAT:001", ...]. Extracted from /meta/columns.
 /meta/column_prefixes   Dataset<string>: the list of column prefixes: e.g. ["pv000", "pv001", ...]. Extracted from /meta/labels.
