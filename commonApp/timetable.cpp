@@ -124,33 +124,6 @@ TimeTableValue TimeTable::wrap(pvxs::Value value, bool validate) const {
     return TimeTableValue(*this, value);
 }
 
-static bool parts(const std::string & name, char sep, std::string * prefix, std::string * suffix) {
-    if (!prefix && !suffix)
-        return true;
-
-    auto i = name.find(sep);
-
-    if (i == std::string::npos)
-        return false;
-
-    if (prefix)
-        *prefix = name.substr(0, i);
-
-    if (suffix)
-        *suffix = name.substr(i+1);
-
-    return true;
-}
-
-void TimeTable::colname_parts(const std::string & colname, std::string * prefix, std::string * suffix) {
-    if (!parts(colname, '_', prefix, suffix))
-        throw "Invalid column name (must contain an underscore)";
-}
-
-void TimeTable::pvname_parts(const std::string & pvname, std::string * prefix, std::string * suffix) {
-    if (!parts(pvname, ' ', prefix, suffix))
-        throw "Invalid label name (must contain a space)";
-}
 
 static std::vector<nt::NTTable::ColumnSpec> from_columns_config(TimeTableScalar::Config config) {
     std::vector<nt::NTTable::ColumnSpec> cols {

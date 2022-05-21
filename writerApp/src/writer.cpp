@@ -66,6 +66,24 @@ static H5::DataType pvxs_to_h5_type(pvxs::TypeCode t) {
     }
 }
 
+static bool parts(const std::string & name, const std::string & sep, std::string * prefix, std::string * suffix) {
+    if (!prefix && !suffix)
+        return true;
+
+    auto i = name.rfind(sep);
+
+    if (i == std::string::npos)
+        return false;
+
+    if (prefix)
+        *prefix = name.substr(0, i);
+
+    if (suffix)
+        *suffix = name.substr(i+1);
+
+    return true;
+}
+
 void Writer::build_file_structure(size_t chunk_size) {
     epicsTimeStamp start, end;
     epicsTimeGetCurrent(&start);
@@ -114,8 +132,11 @@ void Writer::build_file_structure(size_t chunk_size) {
     for (auto c : type_->data_columns) {
         std::string pvname, column_prefix, column_suffix;
 
-        TimeTable::pvname_parts(c.label, &pvname, NULL);
-        TimeTable::colname_parts(c.name, &column_prefix, &column_suffix);
+        if (!parts(c.label, label_sep_, &pvname, NULL))
+            throw std::runtime_error(std::string("Invalid label name (must contain '") + label_sep_ + "'): " + c.label);
+
+        if (!parts(c.name, col_sep_, &column_prefix, &column_suffix))
+            throw std::runtime_error(std::string("Invalid column name (must contain '") + col_sep_ + "'): " + c.name);
 
         if (pvnames_set.find(pvname) == pvnames_set.end()) {
             pvnames.push_back(pvname);
@@ -153,8 +174,8 @@ void Writer::build_file_structure(size_t chunk_size) {
     log_debug_printf(LOG, "Built file structure in %.3f sec\n", epicsTimeDiffInSeconds(&end, &start));
 }
 
-Writer::Writer(const std::string & input_pv, const std::string & path)
-:input_pv_(input_pv), type_(nullptr), file_(new H5::File(path, H5F_ACC_EXCL)) {
+Writer::Writer(const std::string & input_pv, const std::string & path, const std::string & label_sep, const std::string & col_sep)
+:input_pv_(input_pv), type_(nullptr), file_(new H5::File(path, H5F_ACC_EXCL)), label_sep_(label_sep), col_sep_(col_sep) {
     log_debug_printf(LOG, "Writing to file '%s'\n", path.c_str());
 }
 
