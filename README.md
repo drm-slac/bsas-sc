@@ -193,31 +193,45 @@ OPTIONS
 
 ## writerApp
 
-A standalone executable (not an IOC) that writes NTTables to an HDF5 file.
+A standalone executable (not an IOC) that writes NTTables to HDF5 files.
 
 ```
 $ ./bin/linux-x86_64/writer --help
 SYNOPSIS
-        ./bin/linux-x86_64/writer --input-pv <input_pv> --output-file <output_file> --timeout
-                                  <timeout> --duration <duration>
+        ./bin/linux-x86_64/writer --input-pv <input_pv> --base-directory <base_directory>
+                                  --file-prefix <file_prefix> --timeout-sec <timeout_sec>
+                                  [--max-duration-sec <max_duration_sec>] [--max-size-mb
+                                  <max_size_mb>] [--label-sep <label_sep>] [--column-sep <col_sep>]
 
 OPTIONS
         --input-pv  Name of the input PV
-        --output-file
-                    Path to the output HDF5 file
+        --base-directory
+                    Path to the base directory for HDF5 files
 
-        --timeout   If no updates are received within timeout seconds, close the file and exit. A
-                    value of 0 means wait forever
+        --file-prefix
+                    Prefix for generated HDF5 files
 
-        --duration  Total time, in seconds, to collect data for. If 0, collect until the program is
-                    killed
+        --timeout-sec
+                    If no updates are received within timeout (in seconds), close the file and exit.
+                    A value of 0 means wait forever
+
+        --max-duration-sec
+                    Maximum time, in seconds, to collect data for in a single HDF5 file. If 0, don't
+                    limit files by time. Default: 0
+
+        --max-size-mb
+                    Maximum size, in MB, to collect data for in a single HDF5 file. If 0, don't
+                    limit files by size. Default: 0
+
+        --label-sep separator between PV name and column name in labels. Default: '.'
+        --column-sep
+                    separator between PV identifier and original column name. Default: '_'
 ```
 
 This progam exits on any of these conditions:
 
 * If output file already exists (error)
-* After `timeout` seconds since the last update
-* After running for `duration` seconds
+* After `timeout_sec` seconds since the last update
 * If `input_pv` disconnects
 
 The `input_pv` is assumed to conform to `TimeTable`. The resulting HDF5 structure is as follows:
@@ -236,7 +250,7 @@ Note: the input PV NTTable shape can be reconstructed from /meta/{labels,columns
 /data/secondsPastEpoch  Dataset<T>: timestamp for each row
 /data/nanoseconds       Dataset<T>: timestamp for each row
 /data/pv000/            Group
-/data/pv000/min         Dataset<T>: data for the "min" column for pv000
+/data/pv000/MIN         Dataset<T>: data for the "MIN" column for pv000
 /data/pv000/...         Dataset<T>: other data columns for pv000
 /data/...               Groups for other signals
 ...
