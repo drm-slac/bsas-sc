@@ -196,15 +196,21 @@ A standalone executable (not an IOC) that *merges* together different input NTTa
 ```
 $ ./bin/linux-x86_64/merger
 SYNOPSIS
-        ./bin/linux-x86_64/merger --pvlist <pvlist> --alignment <alignment> --period <period>
-                                  --timeout <timeout> --pvname <pvname> [--label-sep <label_sep>]
-                                  [--column-sep <col_sep>]
+        ./bin/linux-x86_64/merger --pvlist <pvlist> --alignment-usec <alignment_usec> --period-sec
+                                  <period_sec> --timeout-sec <timeout_sec> --pvname <pvname>
+                                  [--label-sep <label_sep>] [--column-sep <col_sep>]
 
 OPTIONS
         --pvlist    file with list of input NTTable PVs to be merged (newline-separated)
-        --alignment time-alignment period, in micro seconds
-        --period    update publication period, in seconds
-        --timeout   time window to wait for laggards, in seconds
+        --alignment-usec
+                    time-alignment period, in micro seconds
+
+        --period-sec
+                    update publication period, in seconds
+
+        --timeout-sec
+                    time window to wait for laggards, in seconds
+
         --pvname    name of the output PV
         --label-sep separator between PV name and column name in labels. Default: '.'
         --column-sep
