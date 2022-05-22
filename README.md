@@ -77,7 +77,8 @@ Simulates a number of scalar PVs via calc records. It provides databases to load
 
 Simulates an NTTable with a configurable number of columns. It is meant to simulate aggregated readings from disparate but correlated PVs. The simulation happens in the device support of an `asub` record. The database provides a few macros to configure it:
 
-* `COUNT`: The number of scalar PVs to simulate. All PVs will have the same value at the same timestamp, a sinusoidal equivalent to the one in `ioc-sim-scalar` (with the same alarm limits).
+* `NUM_TABLES`: The number of output NTTable PVs to simulate. All rows in all tables will have the same value.
+* `NUM_SIGNALS`: The number of scalar PVs in each NTTable to simulate. All PVs will have the same value at the same timestamp, a sinusoidal equivalent to the one in `ioc-sim-scalar` (with the same alarm limits).
 * `CONFIG`: Which metadata columns to simulate. OR together:
     * `0x00`: Value (always included)
     * `0x01`: User Tag (always 0 if included)
@@ -95,18 +96,18 @@ Simulates an NTTable with a configurable number of columns. It is meant to simul
 
 If the configuration is:
 
-> `P=SIM:`, `R=TABLE`, `COUNT=2`, `COLUMNS=0x02`, `SCAN=1 second`, `TIME_STEP_SEC=0.001`, `NUM_ROWS=1000`, `LABEL_SEP=.`, `COL_SEP=_`
+> `P=SIM:`, `R=TABLE`, `NUM_TABLES=1`, `NUM_SIGNALS=2`, `COLUMNS=0x02`, `SCAN=1 second`, `TIME_STEP_SEC=0.001`, `NUM_ROWS=1000`, `LABEL_SEP=.`, `COL_SEP=_`
 
-Then every second a V7 NTTable named `SIM:TABLE` with `1000 rows` will be produced. Its columns will be:
+Then every second a V7 NTTable named `SIM:TABLE:0` with `1000 rows` will be produced. Its columns will be:
 
 | Column             | Label                  | Type       |
 |--------------------|------------------------|------------|
 | `secondsPastEpoch` | `secondsPastEpoch`     | `uint32_t` |
 | `nanoseconds`      | `nanoseconds`          | `uint32_t` |
-| `pv0_value`        | `SIM:TABLE:0.value`    | `double`   |
-| `pv0_severity`     | `SIM:TABLE:0.severity` | `uint16_t` |
-| `pv1_value`        | `SIM:TABLE:1.value`    | `double`   |
-| `pv1_severity`     | `SIM:TABLE:1.severity` | `uint16_t` |
+| `pv0_value`        | `SIM:SIG:0.value`      | `double`   |
+| `pv0_severity`     | `SIM:SIG:0.severity`   | `uint16_t` |
+| `pv1_value`        | `SIM:SIG:1.value`      | `double`   |
+| `pv1_severity`     | `SIM:SIG:1.severity`   | `uint16_t` |
 
 The timestamps between rows will be 1 millisecond apart.
 
@@ -114,7 +115,8 @@ The timestamps between rows will be 1 millisecond apart.
 
 Simulates an NTTable with statistics samples. It is meant to simulate statistically compressed readings from disparate but correlated PVs. The simulation happens in the device support of an `asub` record. The database provides a few macros to configure it:
 
-* `COUNT`: The number of "signals" to simulate. All "signals" will have the same value at the same timestamp, a compressed sinusoidal equivalent to the one in `ioc-sim-scalar`. Each row is equivalent to compressing `NUM_SAMPLES` samples.
+* `NUM_TABLES`: The number of output NTTable PVs to simulate. All rows in all tables will have the same value.
+* `NUM_SIGNALS`: The number of "signals" to simulate. All "signals" will have the same value at the same timestamp, a compressed sinusoidal equivalent to the one in `ioc-sim-scalar`. Each row is equivalent to compressing `NUM_SAMPLES` samples.
 * `CONFIG`: Indicates that this is a simulated statistics table. The only acceptable value is `0x10` (or `16` decimal).
 * `SCAN`: How often to produce updates.
 * `NUM_SAMPLES`: Number of compressed samples in each row.
@@ -125,26 +127,48 @@ Simulates an NTTable with statistics samples. It is meant to simulate statistica
 
 If the configuration is:
 
-> `P=SIM:`, `R=STAT`, `COUNT=2`, `COLUMNS=0x02`, `SCAN=1 second`, `TIME_STEP_SEC=0.001`, `NUM_ROWS=1000`, `NUM_SAMPLES=10`, `LABEL_SEP=.`, `COL_SEP=_`
+> `P=SIM:`, `R=STAT`, `NUM_TABLES=2`, `NUM_SIGNALS=2`, `COLUMNS=0x02`, `SCAN=1 second`, `TIME_STEP_SEC=0.001`, `NUM_ROWS=1000`, `NUM_SAMPLES=10`, `LABEL_SEP=.`, `COL_SEP=_`
 
-Then every second a V7 NTTable named `SIM:STAT` with `1000 rows` will be produced. Its columns will be:
+Then every second two V7 NTTable named `SIM:STAT:0` and `SIM:STAT:1` with `1000 rows` will be produced. Their columns will be:
+
+#### `SIM:STAT:0`
 
 | Column             | Label                  | Type       |
 |--------------------|------------------------|------------|
 | `secondsPastEpoch` | `secondsPastEpoch`     | `uint32_t` |
 | `nanoseconds`      | `nanoseconds`          | `uint32_t` |
-| `pv0_VAL`          | `SIM:STAT:0.VAL`       | `double`   |
-| `pv0_CNT`          | `SIM:STAT:0.CNT`       | `double`   |
-| `pv0_MIN`          | `SIM:STAT:0.MIN`       | `double`   |
-| `pv0_MAX`          | `SIM:STAT:0.MAX`       | `double`   |
-| `pv0_AVG`          | `SIM:STAT:0.AVG`       | `double`   |
-| `pv0_RMS`          | `SIM:STAT:0.RMS`       | `double`   |
-| `pv1_VAL`          | `SIM:STAT:1.VAL`       | `double`   |
-| `pv1_CNT`          | `SIM:STAT:1.CNT`       | `double`   |
-| `pv1_MIN`          | `SIM:STAT:1.MIN`       | `double`   |
-| `pv1_MAX`          | `SIM:STAT:1.MAX`       | `double`   |
-| `pv1_AVG`          | `SIM:STAT:1.AVG`       | `double`   |
-| `pv1_RMS`          | `SIM:STAT:1.RMS`       | `double`   |
+| `pv0_VAL`          | `SIM:SIG:0.VAL`        | `double`   |
+| `pv0_CNT`          | `SIM:SIG:0.CNT`        | `uint32_t` |
+| `pv0_MIN`          | `SIM:SIG:0.MIN`        | `double`   |
+| `pv0_MAX`          | `SIM:SIG:0.MAX`        | `double`   |
+| `pv0_AVG`          | `SIM:SIG:0.AVG`        | `double`   |
+| `pv0_RMS`          | `SIM:SIG:0.RMS`        | `double`   |
+| `pv1_VAL`          | `SIM:SIG:1.VAL`        | `double`   |
+| `pv1_CNT`          | `SIM:SIG:1.CNT`        | `uint32_t` |
+| `pv1_MIN`          | `SIM:SIG:1.MIN`        | `double`   |
+| `pv1_MAX`          | `SIM:SIG:1.MAX`        | `double`   |
+| `pv1_AVG`          | `SIM:SIG:1.AVG`        | `double`   |
+| `pv1_RMS`          | `SIM:SIG:1.RMS`        | `double`   |
+
+#### `SIM:STAT:1`
+
+| Column             | Label                  | Type       |
+|--------------------|------------------------|------------|
+| `secondsPastEpoch` | `secondsPastEpoch`     | `uint32_t` |
+| `nanoseconds`      | `nanoseconds`          | `uint32_t` |
+| `pv0_VAL`          | `SIM:SIG:2.VAL`        | `double`   |
+| `pv0_CNT`          | `SIM:SIG:2.CNT`        | `uint32_t` |
+| `pv0_MIN`          | `SIM:SIG:2.MIN`        | `double`   |
+| `pv0_MAX`          | `SIM:SIG:2.MAX`        | `double`   |
+| `pv0_AVG`          | `SIM:SIG:2.AVG`        | `double`   |
+| `pv0_RMS`          | `SIM:SIG:2.RMS`        | `double`   |
+| `pv1_VAL`          | `SIM:SIG:3.VAL`        | `double`   |
+| `pv1_CNT`          | `SIM:SIG:3.CNT`        | `uint32_t` |
+| `pv1_MIN`          | `SIM:SIG:3.MIN`        | `double`   |
+| `pv1_MAX`          | `SIM:SIG:3.MAX`        | `double`   |
+| `pv1_AVG`          | `SIM:SIG:3.AVG`        | `double`   |
+| `pv1_RMS`          | `SIM:SIG:3.RMS`        | `double`   |
+
 
 The timestamps between rows will be 1 millisecond apart.
 

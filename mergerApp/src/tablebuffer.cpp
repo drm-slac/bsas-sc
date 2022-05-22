@@ -18,8 +18,13 @@ TimeSpan::TimeSpan() {
 TimeSpan::TimeSpan(const epicsTimeStamp & start, const epicsTimeStamp & end)
 : valid(true), start(start), end(end)
 {
-    //printf("start = %u.%u   end=%u.%u\n", start.secPastEpoch, start.nsec, end.secPastEpoch, end.nsec);
-    assert(epicsTimeGreaterThanEqual(&end, &start));
+    if (!epicsTimeGreaterThanEqual(&end, &start)) {
+        char message[1024];
+        epicsSnprintf(message, sizeof(message),
+            "TimeSpan expected to have start=%u.%09u before end=%u%.09u",
+            start.secPastEpoch, start.nsec, end.secPastEpoch, end.nsec);
+        throw std::runtime_error(message);
+    }
 }
 
 void TimeSpan::update(const epicsTimeStamp & start, const epicsTimeStamp & end) {
@@ -125,6 +130,9 @@ std::pair<size_t, size_t> TableBuffer::consume_each_row_inner(ConsumeFunc f) {
         auto nanoseconds =
             v.get_column_as<const TimeTable::NANOSECONDS_T>(TimeTable::NANOSECONDS_COL);
 
+        auto pulse_id =
+            v.get_column_as<const TimeTable::PULSE_ID_T>(TimeTable::PULSE_ID_COL);
+
         std::vector<pvxs::shared_array<const void>> col_vals;
         for (auto & col : type_->data_columns) {
             auto col_val = v.get_column_as<const void>(col.name);
@@ -136,12 +144,16 @@ std::pair<size_t, size_t> TableBuffer::consume_each_row_inner(ConsumeFunc f) {
         inner_idx = outer_idx == 0 ? inner_idx_ : 0;
         for (;inner_idx < n; ++inner_idx) {
 
+            // TODO: we use pulse id as a separate value, but once EPICS BASE can
+            // be updated, it should be put into epicsTimeStamp in the UTAG field.
             epicsTimeStamp ts {
                 seconds_past_epoch[inner_idx],
                 nanoseconds[inner_idx]
             };
 
-            bool done = f(ts, col_vals, inner_idx);
+            auto p_id = pulse_id[inner_idx];
+
+            bool done = f(ts, p_id, col_vals, inner_idx);
 
             if (done)
                 return std::make_pair(outer_idx, inner_idx);

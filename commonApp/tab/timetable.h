@@ -12,15 +12,19 @@ struct TimeTable {
 public:
     typedef uint32_t SECONDS_PAST_EPOCH_T;
     typedef uint32_t NANOSECONDS_T;
+    typedef uint64_t PULSE_ID_T;
 
     static const std::string SECONDS_PAST_EPOCH_COL;
     static const std::string NANOSECONDS_COL;
+    static const std::string PULSE_ID_COL;
 
     static const std::string SECONDS_PAST_EPOCH_LABEL;
     static const std::string NANOSECONDS_LABEL;
+    static const std::string PULSE_ID_LABEL;
 
     static const nt::NTTable::ColumnSpec SECONDS_PAST_EPOCH;
     static const nt::NTTable::ColumnSpec NANOSECONDS;
+    static const nt::NTTable::ColumnSpec PULSE_ID;
 
     const std::vector<nt::NTTable::ColumnSpec> columns;
     const std::vector<nt::NTTable::ColumnSpec> time_columns;
@@ -78,7 +82,7 @@ struct TimeTableScalar : public TimeTable {
 
 struct TimeTableStat : public TimeTable {
     typedef double VAL_T;
-    typedef double NUM_SAMP_T;
+    typedef uint32_t NUM_SAMP_T;
     typedef double MIN_T;
     typedef double MAX_T;
     typedef double MEAN_T;

@@ -182,7 +182,7 @@ int main (int argc, char *argv[]) {
             epicsTimeToTM(&start_tm, NULL, &start);
 
             int year = 1900 + start_tm.tm_year;
-            int month = start_tm.tm_mon;
+            int month = start_tm.tm_mon + 1;
             int day = start_tm.tm_mday;
             int hour = start_tm.tm_hour;
             int minute = start_tm.tm_min;
@@ -260,7 +260,7 @@ int main (int argc, char *argv[]) {
 
                 if (file_size_mb >= max_size_mb) {
                     // We reached the maximum file size, exit the inner loop so a new file can be generated
-                    log_info_printf(LOG, "File %s has size %lu MB, which meets or exceeds maximum size of %lu MB\n", 
+                    log_info_printf(LOG, "File %s has size %lu MB, which meets or exceeds maximum size of %lu MB\n",
                         output_file, file_size_mb, max_size_mb);
                     break;
                 }

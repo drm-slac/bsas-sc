@@ -48,6 +48,7 @@ public:
     typedef std::function<
         bool( /* Returns "done": true to stop iterating early, false to continue iterating.*/
             const epicsTimeStamp & /* row timestamp */,
+            const TimeTable::PULSE_ID_T, /* row pulseId */
             const std::vector<pvxs::shared_array<const void>> & /* column containers */,
             size_t /* row index within each column container */
         )

@@ -61,7 +61,7 @@ private:
     std::unique_ptr<TimeTable> type_;
 
     void initialize();
-    nt::NTTable::ColumnSpec prefixed_colspec(size_t idx, const std::string & pvname,
+    nt::NTTable::ColumnSpec prefixed_colspec(size_t idx, size_t total, const std::string & pvname,
         const nt::NTTable::ColumnSpec & spec);
 
 public:

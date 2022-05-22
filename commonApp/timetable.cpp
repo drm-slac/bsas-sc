@@ -1,8 +1,15 @@
 #include "tab/timetable.h"
 
+#include <map>
+
+#include <epicsStdio.h>
+
 using pvxs::TypeCode;
 
 namespace tabulator {
+
+// TODO: we are being overly strict here, enforcing the *order* of the columns
+// This can be relaxed
 
 #define COLSPEC(MEMBER,TYPE,STR)\
     const std::string MEMBER ## _COL(STR);\
@@ -11,6 +18,8 @@ namespace tabulator {
 
 COLSPEC(TimeTable::SECONDS_PAST_EPOCH, TypeCode::UInt32A, "secondsPastEpoch");
 COLSPEC(TimeTable::NANOSECONDS,        TypeCode::UInt32A, "nanoseconds");
+COLSPEC(TimeTable::PULSE_ID,           TypeCode::UInt64A, "pulseId");
+static const size_t NUM_TIME_COLS = 3;
 
 COLSPEC(TimeTableScalar::VALUE,        TypeCode::Float64A, "value");
 COLSPEC(TimeTableScalar::UTAG,         TypeCode::UInt64A,  "utag");
@@ -19,7 +28,7 @@ COLSPEC(TimeTableScalar::ALARM_COND,   TypeCode::UInt16A,  "condition");
 COLSPEC(TimeTableScalar::ALARM_MSG,    TypeCode::StringA,  "message");
 
 COLSPEC(TimeTableStat::VAL,            TypeCode::Float64A, "VAL");
-COLSPEC(TimeTableStat::NUM_SAMP,       TypeCode::Float64A, "CNT");
+COLSPEC(TimeTableStat::NUM_SAMP,       TypeCode::UInt32A,  "CNT");
 COLSPEC(TimeTableStat::MIN,            TypeCode::Float64A, "MIN");
 COLSPEC(TimeTableStat::MAX,            TypeCode::Float64A, "MAX");
 COLSPEC(TimeTableStat::MEAN,           TypeCode::Float64A, "AVG");
@@ -28,50 +37,68 @@ COLSPEC(TimeTableStat::RMS,            TypeCode::Float64A, "RMS");
 
 static std::vector<nt::NTTable::ColumnSpec> from_data_columns(const std::vector<nt::NTTable::ColumnSpec> & data_columns) {
     std::vector<nt::NTTable::ColumnSpec> specs {
-        TimeTable::SECONDS_PAST_EPOCH, TimeTable::NANOSECONDS
+        TimeTable::SECONDS_PAST_EPOCH, TimeTable::NANOSECONDS, TimeTable::PULSE_ID
     };
     specs.insert(specs.end(), data_columns.begin(), data_columns.end());
     return specs;
 }
 
 TimeTable::TimeTable(const std::vector<nt::NTTable::ColumnSpec> & data_columns)
-: columns(from_data_columns(data_columns)), time_columns(columns.begin(), columns.begin() + 2),
-  data_columns(columns.begin() + 2, columns.end()), nttable(columns.begin(), columns.end())
+: columns(from_data_columns(data_columns)), time_columns(columns.begin(), columns.begin() + NUM_TIME_COLS),
+  data_columns(columns.begin() + NUM_TIME_COLS, columns.end()), nttable(columns.begin(), columns.end())
 {}
 
 static std::vector<nt::NTTable::ColumnSpec> from_value(const pvxs::Value & value) {
+    static const std::map<size_t, std::string> EXPECTED_COLS {
+        {0u, TimeTable::SECONDS_PAST_EPOCH_COL},
+        {1u, TimeTable::NANOSECONDS_COL},
+        {2u, TimeTable::PULSE_ID_COL},
+    };
+
     auto & labels_field = value[nt::NTTable::LABELS_FIELD];
     auto & columns_field = value[nt::NTTable::COLUMNS_FIELD];
 
-    assert(labels_field.valid());
-    assert(columns_field.valid());
+    if (!labels_field.valid())
+        throw std::runtime_error(std::string("Expected the field '") + nt::NTTable::LABELS_FIELD + "' to be valid");
+
+    if (!columns_field.valid())
+        throw std::runtime_error(std::string("Expected the field '") + nt::NTTable::COLUMNS_FIELD + "' to be valid");
 
     const auto & labels = labels_field.as<pvxs::shared_array<const std::string>>();
     size_t ncolumns = columns_field.nmembers();
 
-    assert(labels.size() == ncolumns);
-    assert(ncolumns >= 2);
+    if (labels.size() != ncolumns) {
+        char message[1024];
+        epicsSnprintf(message, sizeof(message),
+            "There are %lu lables and %lu columns, they were expected to be the same",
+            labels.size(), ncolumns);
+        throw std::runtime_error(message);
+    }
 
     std::vector<nt::NTTable::ColumnSpec> specs;
 
     auto columns_it = columns_field.ichildren();
     size_t idx = 0;
     for (auto it = columns_it.begin(); it != columns_it.end(); ++it, ++idx) {
-        if (idx == 0)
-            assert(columns_field.nameOf(*it) == TimeTable::SECONDS_PAST_EPOCH_COL);
+        std::string name(columns_field.nameOf(*it));
 
-        if (idx == 1)
-            assert(columns_field.nameOf(*it) == TimeTable::NANOSECONDS_COL);
+        auto expected = EXPECTED_COLS.find(idx);
+        if (expected != EXPECTED_COLS.end() && (*expected).second != name) {
+            char message[1024];
+            epicsSnprintf(message, sizeof(message), "Expected column named '%s' at index %lu, but found '%s'",
+                (*expected).second.c_str(), idx, name.c_str());
+            throw std::runtime_error(message);
+        }
 
-        specs.emplace_back((*it).type(), columns_field.nameOf(*it), labels[idx]);
+        specs.emplace_back((*it).type(), name, labels[idx]);
     }
 
     return specs;
 }
 
 TimeTable::TimeTable(const pvxs::Value & value)
-: columns(from_value(value)), time_columns(columns.begin(), columns.begin() + 2),
-  data_columns(columns.begin() + 2, columns.end()), nttable(columns.begin(), columns.end())
+: columns(from_value(value)), time_columns(columns.begin(), columns.begin() + NUM_TIME_COLS),
+  data_columns(columns.begin() + NUM_TIME_COLS, columns.end()), nttable(columns.begin(), columns.end())
 {}
 
 bool TimeTable::is_valid(const pvxs::Value & value) const {
@@ -96,7 +123,7 @@ bool TimeTable::is_valid(const pvxs::Value & value) const {
     if (vcolumns_field.nmembers() != columns.size())
         return false;
 
-    // Column name and type and label must match, in order
+    // Column name and type and label must match, in order (overly strict for now)
     auto vcolumns_it = vcolumns_field.ichildren();
     size_t idx = 0;
     for (auto it = vcolumns_it.begin(); it != vcolumns_it.end(); ++it, ++idx) {
@@ -119,7 +146,7 @@ TimeTableValue TimeTable::create() const {
 
 TimeTableValue TimeTable::wrap(pvxs::Value value, bool validate) const {
     if (validate && !is_valid(value))
-        throw "Value is of incompatible type";
+        throw std::runtime_error("Value is of incompatible type");
 
     return TimeTableValue(*this, value);
 }
