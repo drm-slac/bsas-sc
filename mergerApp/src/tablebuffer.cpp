@@ -163,16 +163,17 @@ std::pair<size_t, size_t> TableBuffer::consume_each_row_inner(ConsumeFunc f) {
     }
 
     return std::make_pair(outer_idx, 0);
-
 }
 
 void TableBuffer::consume_each_row(ConsumeFunc f) {
     size_t outer_idx, inner_idx;
     std::tie(outer_idx, inner_idx) = consume_each_row_inner(f);
 
+    // Remove fully consumed buffers
     for (size_t idx = 0; idx < outer_idx; ++idx)
         buffer_.pop_front();
 
+    // Remove rows from partially consumed buffers
     inner_idx_ = inner_idx;
     update_timestamps();
 }
