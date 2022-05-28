@@ -237,7 +237,9 @@ pvxs::Value TimeAlignedTable::extract(const epicsTimeStamp & start, const epicsT
     }
 
     // Real pulseId
-    pvxs::shared_array<TimeTable::PULSE_ID_T> pulseId(num_rows);
+    pvxs::shared_array<TimeTable::PULSE_ID_T> pulseId(num_rows, 0);
+    std::vector<bool> pulseId_set(num_rows, false);
+    std::vector<size_t> pulseId_mismatch;
 
     // Extract values from each of our buffers (each buffer contains updates for a single input Table PV)
     for (auto & buf : buffers_) {
@@ -247,7 +249,7 @@ pvxs::Value TimeAlignedTable::extract(const epicsTimeStamp & start, const epicsT
 
         // Iterate over each result row
         size_t row = 0;
-        buf.consume_each_row([this, num_rows, &row, start_ts, end_ts, &pulseId, &valid, &column_values](
+        buf.consume_each_row([this, num_rows, &row, start_ts, end_ts, &pulseId, &pulseId_set, &pulseId_mismatch, &valid, &column_values](
             const epicsTimeStamp & buf_ts,
             const TimeTable::PULSE_ID_T pulse_id,
             const std::vector<pvxs::shared_array<const void>> & buf_cols,
@@ -268,7 +270,12 @@ pvxs::Value TimeAlignedTable::extract(const epicsTimeStamp & start, const epicsT
                 // NOTE: we potentially override the pulseId for the row,
                 // but the assumption is that if the timestamp matches,
                 // pulseId will be the same
-                pulseId[row] = pulse_id;
+                if (!pulseId_set[row]) {
+                    pulseId[row] = pulse_id;
+                    pulseId_set[row] = true;
+                } else if (pulseId[row] != pulse_id) {
+                    pulseId_mismatch.push_back(row);
+                }
 
                 copy_row(column_values, row, buf_cols, buf_idx);
                 ++row;
@@ -293,6 +300,14 @@ pvxs::Value TimeAlignedTable::extract(const epicsTimeStamp & start, const epicsT
         for (; row < num_rows; ++row) {
             valid[row] = false;
             set_empty_row(column_values, row);
+        }
+
+        // Warn if there were pulseId mismatches
+        size_t num_mismatches = pulseId_mismatch.size();
+        if (num_mismatches > 0) {
+            log_warn_printf(LOG,
+                "extract() - there were %lu pulseId mismatches in time-aligned rows. First mismatched row index: %lu, last: %lu\n",
+                num_mismatches, pulseId_mismatch[0], pulseId_mismatch[num_mismatches-1]);
         }
 
         // We built all columns from this buffer, save them
