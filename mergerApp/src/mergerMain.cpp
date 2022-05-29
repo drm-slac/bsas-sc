@@ -91,10 +91,13 @@ public:
             subscriptions_.emplace_back(
                 client_
                     .monitor(pvname)
+                    .maskConnected(false)
+                    .maskDisconnected(false)
                     .event([this, col_idx](pvxs::client::Subscription &sub) {
                         this->queue_.push(std::make_pair(col_idx, sub.shared_from_this()));
                     })
                     .exec());
+
             ++col_idx;
         }
     }
@@ -123,9 +126,11 @@ public:
 
                 //std::cout << sub->name() << std::endl << update.get();
                 taligned_table_->push(col_idx, value);
-
+            } catch (pvxs::client::Connected & ex) {
+                log_info_printf(LISTENER_LOG, "PV connected: %s\n", sub->name().c_str());
+            } catch (pvxs::client::Disconnect & ex) {
+                log_warn_printf(LISTENER_LOG, "PV disconnected: %s\n", sub->name().c_str());
             } catch (std::exception &e) {
-                // TODO: handle disconnection gracefully
                 log_err_printf(LISTENER_LOG, "Error: %s %s\n", sub->name().c_str(), e.what());
                 break;
             }
@@ -162,7 +167,7 @@ public:
       taligned_table_(taligned_table), period_(period), timeout_(timeout), pv_(pv)
     {
         assert(period > 0.0);
-        assert(timeout > period);
+        assert(timeout == 0 || timeout > period);
     }
 
     bool prepare(double sleepPeriod) {
@@ -173,8 +178,9 @@ public:
 
         log_info_printf(REACTOR_LOG, "Waiting until all PVs have at least one update%s\n", "");
 
-        while (running_ && epicsTimeDiffInSeconds(&now_ts, &start_ts) < timeout_ && !taligned_table_->initialized()) {
+        while (running_ && (timeout_ == 0 || epicsTimeDiffInSeconds(&now_ts, &start_ts) < timeout_) && !taligned_table_->initialized()) {
             epicsThreadSleep(sleepPeriod);
+            epicsTimeGetCurrent(&now_ts);
             continue;
         }
 
@@ -207,7 +213,23 @@ public:
         auto initial = taligned_table_->create();
         pv_.open(initial);
 
+        epicsTimeStamp last_update;
+        epicsTimeGetCurrent(&last_update);
+
         while (running_) {
+            epicsTimeStamp now;
+            epicsTimeGetCurrent(&now);
+
+            double secs_since_last_update = epicsTimeDiffInSeconds(&now, &last_update);
+
+            if (timeout_ > 0 && secs_since_last_update > timeout_) {
+                log_err_printf(
+                    REACTOR_LOG, "Timed out waiting for updates. Waited for %.1f sec (timeout=%.1f sec)\n",
+                    secs_since_last_update, timeout_
+                );
+                break;
+            }
+
             TimeBounds bounds = taligned_table_->get_timebounds();
 
             if (!bounds.valid) {
@@ -236,6 +258,7 @@ public:
 
             auto value = taligned_table_->extract(start, end);
             pv_.post(value);
+            epicsTimeGetCurrent(&last_update);
         }
 
         log_info_printf(REACTOR_LOG, "Ending%s\n", "");
@@ -261,7 +284,7 @@ int main (int argc, char *argv[]) {
     std::string pvlist_file;
     uint32_t alignment_usec = 0;
     double period_sec;
-    double timeout_sec;
+    double timeout_sec = 0.0;
     std::string pvname;
     std::string label_sep = ".";
     std::string col_sep = "_";
@@ -281,8 +304,8 @@ int main (int argc, char *argv[]) {
             .doc("Update publication period, in seconds.")
             & clipp::value("period_sec", period_sec),
 
-        clipp::required("--timeout-sec")
-            .doc("Time window to wait for laggards, in seconds.")
+        clipp::option("--timeout-sec")
+            .doc("Time window to wait for laggards, in seconds. Default: 0 (wait forever).")
             & clipp::value("timeout_sec", timeout_sec),
 
         clipp::required("--pvname")
@@ -316,7 +339,7 @@ int main (int argc, char *argv[]) {
         } while(0)
 
     VALIDATE_ARG(period_sec <= 0.0, "Invalid period: %.6f seconds\n", period_sec);
-    VALIDATE_ARG(timeout_sec <= 0.0 || timeout_sec < period_sec, "Invalid timeout: %.6f seconds\n", timeout_sec);
+    VALIDATE_ARG(timeout_sec < 0.0 || (timeout_sec > 0 && timeout_sec < period_sec), "Invalid timeout: %.6f seconds\n", timeout_sec);
     #undef VALIDATE_ARG
 
     std::vector<std::string> pvlist(pvlist_from_file(pvlist_file));
@@ -326,7 +349,7 @@ int main (int argc, char *argv[]) {
     log_info_printf(LOG, "  pvlist=%s [%lu PVs]\n", pvlist_file.c_str(), pvlist.size());
     log_info_printf(LOG, "  alignment=%u us%s\n", alignment_usec, alignment_usec == 0 ? " (auto-detect)" : "");
     log_info_printf(LOG, "  period=%.6f s\n", period_sec);
-    log_info_printf(LOG, "  timeout=%.6f s\n", timeout_sec);
+    log_info_printf(LOG, "  timeout=%.6f s%s\n", timeout_sec, timeout_sec == 0 ? " (wait forever)" : "");
     log_info_printf(LOG, "  pvname=%s\n", pvname.c_str());
     log_info_printf(LOG, "  label-sep=%s\n", label_sep.c_str());
     log_info_printf(LOG, "  column-sep=%s\n", col_sep.c_str());

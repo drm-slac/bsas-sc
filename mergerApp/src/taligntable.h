@@ -30,18 +30,16 @@ struct TimeBounds {
         if (begin == end)
             return;
 
-        valid = true;
-
         for (I it = begin; it != end; ++it) {
-            if (!it->valid) {
-                reset();
-                return;
-            }
+            if (!it->valid)
+                continue;
 
             earliest_start = util::ts::min(it->start, earliest_start);
             earliest_end   = util::ts::min(it->end,   earliest_end);
             latest_start   = util::ts::max(it->start, latest_start);
             latest_end     = util::ts::max(it->end,   latest_end);
+
+            valid = true;
         }
     }
 

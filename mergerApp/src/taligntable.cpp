@@ -119,8 +119,7 @@ bool TimeAlignedTable::initialized() const {
     return type_.get() != 0;
 }
 
-TimeBounds TimeAlignedTable::get_timebounds() const
-{
+TimeBounds TimeAlignedTable::get_timebounds() const {
     Guard G(lock_);
 
     // Collect timespans
