@@ -13,17 +13,6 @@
 #include <pvxs/log.h>
 #include <pvxs/sharedArray.h>
 
-#if EPICS_VERSION_INT < VERSION_INT(7, 0, 6, 1)
-static epicsInt64 epicsTimeDiffInNS (const epicsTimeStamp *pLeft, const epicsTimeStamp *pRight)
-{
-    static const epicsUInt32 nSecPerSec = 1000000000u;
-    epicsInt64 delta = epicsInt64(pLeft->secPastEpoch) - pRight->secPastEpoch;
-    delta *= nSecPerSec;
-    delta += epicsInt64(pLeft->nsec) - pRight->nsec;
-    return delta;
-}
-#endif
-
 DEFINE_LOGGER(LOG, "taligntable");
 
 typedef epicsGuard<epicsMutex> Guard;
@@ -65,12 +54,47 @@ void TimeAlignedTable::initialize() {
 
     std::vector<nt::NTTable::ColumnSpec> data_columns;
     size_t idx = 0;
+
+    // Check that all buffers are initialized
     for (const auto & buf : buffers_) {
         if (!buf.initialized())
             return;
+    }
 
+    // Auto-detect alignment if needed
+    if (alignment_usec_ == 0) {
+        std::map<epicsInt64, size_t> diffs_ns;
+        size_t processed = 0;
+
+        for (const auto & buf : buffers_)
+            processed += buf.extract_time_diffs(diffs_ns);
+
+        // Pick the "most popular" (statistical mode) time difference
+        epicsInt64 diff_ns = 0;
+        size_t max_diff_count = 0;
+
+        for (auto & diff_it : diffs_ns) {
+            if (diff_it.second > max_diff_count) {
+                diff_ns = diff_it.first;
+                max_diff_count = diff_it.second;
+            }
+        }
+
+        log_info_printf(LOG, "auto-detected alignment-usec=%lld us, (found in %lu / %lu differences)\n",
+            diff_ns / 1000, max_diff_count, processed);
+
+        if (diff_ns <= 0)
+            throw std::runtime_error("Auto-detected alignment-usec is negative or zero");
+
+        if (diff_ns > std::numeric_limits<epicsUInt32>::max())
+            throw std::runtime_error("Auto-detected alignment-usec would overflow");
+
+        alignment_usec_ = diff_ns / 1000;
+    }
+
+    // Build type
+    for (const auto & buf : buffers_) {
         const auto & pvname = pvlist_[idx];
-
         data_columns.emplace_back(prefixed_colspec(idx, buffers_.size(), pvname, VALID));
 
         for (const auto & spec : buf.data_columns())
@@ -88,8 +112,6 @@ TimeAlignedTable::TimeAlignedTable(const std::vector<std::string> & pvlist, epic
   buffers_(pvlist.size()), type_()
 {
     log_debug_printf(LOG, "TimeAlignedTable(%lu PVs, align=%u us)\n", pvlist.size(), alignment_usec);
-    if (alignment_usec <= 0)
-        throw std::runtime_error("Expected alignment_usec to be greater than 0");
 }
 
 bool TimeAlignedTable::initialized() const {
@@ -119,8 +141,7 @@ void TimeAlignedTable::push(size_t idx, pvxs::Value value) {
     Guard G(lock_);
 
     // Push the value to the correct buffer
-    TableBuffer & buffer = buffers_[idx];
-    buffer.push(value);
+    buffers_[idx].push(value);
 
     // Create type if we don't have it already
     initialize();

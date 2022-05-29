@@ -9,6 +9,18 @@
 
 #include "nttable.h"
 
+// Compat
+#if EPICS_VERSION_INT < VERSION_INT(7, 0, 6, 1)
+inline epicsInt64 epicsTimeDiffInNS (const epicsTimeStamp *pLeft, const epicsTimeStamp *pRight)
+{
+    static const epicsUInt32 nSecPerSec = 1000000000u;
+    epicsInt64 delta = epicsInt64(pLeft->secPastEpoch) - pRight->secPastEpoch;
+    delta *= nSecPerSec;
+    delta += epicsInt64(pLeft->nsec) - pRight->nsec;
+    return delta;
+}
+#endif
+
 namespace tabulator {
 namespace util {
 namespace ts {

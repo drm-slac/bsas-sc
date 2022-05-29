@@ -109,6 +109,14 @@ public:
      * At the end, removes all rows consumed from the buffer.
      */
     void consume_each_row(ConsumeFunc f);
+
+    /* Extracts the time difference between rows into the given `diffs` map.
+     * `diffs` is a map with the keys being the time difference (in ns)
+     * between rows and the values being the number of times that
+     * the time difference appears.
+     * Returns the number of processed differences.
+     */
+    size_t extract_time_diffs(std::map<epicsInt64, size_t> & diffs) const;
 };
 
 }

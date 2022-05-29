@@ -178,4 +178,34 @@ void TableBuffer::consume_each_row(ConsumeFunc f) {
     update_timestamps();
 }
 
+size_t TableBuffer::extract_time_diffs(std::map<epicsInt64, size_t> & diffs) const {
+    if (buffer_.empty())
+        return 0;
+
+    // Extract from the first buffer only
+    const auto & buf = buffer_.front();
+
+    auto seconds = buf.get_column_as<const TimeTable::SECONDS_PAST_EPOCH_T>(TimeTable::SECONDS_PAST_EPOCH_COL);
+    auto nanoseconds = buf.get_column_as<const TimeTable::NANOSECONDS_T>(TimeTable::NANOSECONDS_COL);
+    size_t nrows = std::min(seconds.size(), nanoseconds.size());
+
+    if (nrows < 2)
+        return 0;
+
+    size_t processed = 0;
+    epicsTimeStamp prev { seconds[0], nanoseconds[0] };
+
+    for (size_t row = 1; row < nrows; ++row) {
+        epicsTimeStamp curr { seconds[row], nanoseconds[row] };
+        epicsInt64 diff = epicsTimeDiffInNS(&curr, &prev);
+
+
+        diffs[diff] += 1;
+        ++processed;
+        prev = curr;
+    }
+
+    return processed;
+}
+
 } // namespace tabulator

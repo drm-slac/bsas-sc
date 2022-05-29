@@ -259,7 +259,7 @@ static std::vector<std::string> pvlist_from_file(const std::string & filename) {
 
 int main (int argc, char *argv[]) {
     std::string pvlist_file;
-    uint32_t alignment_usec;
+    uint32_t alignment_usec = 0;
     double period_sec;
     double timeout_sec;
     std::string pvname;
@@ -270,31 +270,31 @@ int main (int argc, char *argv[]) {
 
     auto cli = (
         clipp::required("--pvlist")
-            .doc("file with list of input NTTable PVs to be merged (newline-separated)")
+            .doc("File with list of input NTTable PVs to be merged (newline-separated).")
             & clipp::value("pvlist", pvlist_file),
 
-        clipp::required("--alignment-usec")
-            .doc("time-alignment period, in micro seconds")
+        clipp::option("--alignment-usec")
+            .doc("Time-alignment period, in micro seconds. Default: 0 (auto-detect based on first update).")
             & clipp::value("alignment_usec", alignment_usec),
 
         clipp::required("--period-sec")
-            .doc("update publication period, in seconds")
+            .doc("Update publication period, in seconds.")
             & clipp::value("period_sec", period_sec),
 
         clipp::required("--timeout-sec")
-            .doc("time window to wait for laggards, in seconds")
+            .doc("Time window to wait for laggards, in seconds.")
             & clipp::value("timeout_sec", timeout_sec),
 
         clipp::required("--pvname")
-            .doc("name of the output PV")
+            .doc("Name of the output PV.")
             & clipp::value("pvname", pvname),
 
         clipp::option("--label-sep")
-            .doc(std::string("separator between PV name and column name in labels. Default: '") + label_sep + "'")
+            .doc(std::string("Separator between PV name and column name in labels. Default: '") + label_sep + "'.")
             & clipp::value("label_sep", label_sep),
 
         clipp::option("--column-sep")
-            .doc(std::string("separator between PV identifier and original column name. Default: '") + col_sep + "'")
+            .doc(std::string("Separator between PV identifier and original column name. Default: '") + col_sep + "'.")
             & clipp::value("col_sep", col_sep)
     );
 
@@ -315,7 +315,6 @@ int main (int argc, char *argv[]) {
             }\
         } while(0)
 
-    VALIDATE_ARG(alignment_usec == 0, "Invalid alignment: %u micro-seconds\n", alignment_usec);
     VALIDATE_ARG(period_sec <= 0.0, "Invalid period: %.6f seconds\n", period_sec);
     VALIDATE_ARG(timeout_sec <= 0.0 || timeout_sec < period_sec, "Invalid timeout: %.6f seconds\n", timeout_sec);
     #undef VALIDATE_ARG
@@ -325,7 +324,7 @@ int main (int argc, char *argv[]) {
     // Create
     log_info_printf(LOG, "Starting%s\n", "");
     log_info_printf(LOG, "  pvlist=%s [%lu PVs]\n", pvlist_file.c_str(), pvlist.size());
-    log_info_printf(LOG, "  alignment=%u us\n", alignment_usec);
+    log_info_printf(LOG, "  alignment=%u us%s\n", alignment_usec, alignment_usec == 0 ? " (auto-detect)" : "");
     log_info_printf(LOG, "  period=%.6f s\n", period_sec);
     log_info_printf(LOG, "  timeout=%.6f s\n", timeout_sec);
     log_info_printf(LOG, "  pvname=%s\n", pvname.c_str());
