@@ -17,7 +17,6 @@
 #include <pvxs/nt.h>
 
 #include <tab/nttable.h>
-#include <tab/util.h>
 #include <tab/timetable.h>
 
 #ifndef dbGetAlarmMsg
@@ -33,8 +32,6 @@ DEFINE_LOGGER(LOG, "stacker");
 
 using tabulator::nt::NTTable;
 using tabulator::TimeTableScalar;
-
-namespace util = tabulator::util;
 
 enum Columns : uint8_t {
     TIMESTAMP_AND_VALUE = 0x00,

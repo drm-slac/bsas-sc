@@ -1,7 +1,7 @@
 #ifndef TAB_TABLEBUFFER_H
 #define TAB_TABLEBUFFER_H
 
-#include <map>
+#include <set>
 #include <deque>
 #include <string>
 #include <functional>
@@ -14,19 +14,34 @@
 
 namespace tabulator {
 
+// Extended timestamp: epicsTimeStamp + user tag
+struct TimeStamp {
+    epicsTimeStamp ts;
+    uint64_t utag;
+
+    /* comparison operators */
+    bool operator == ( const TimeStamp & ) const;
+    bool operator != ( const TimeStamp & ) const;
+    bool operator <= ( const TimeStamp & ) const;
+    bool operator <  ( const TimeStamp & ) const;
+    bool operator >= ( const TimeStamp & ) const;
+    bool operator >  ( const TimeStamp & ) const;
+};
+
 struct TimeSpan {
 
     static const epicsUInt32 MAX_U32;
-    static const epicsTimeStamp MAX_TS;
-    static const epicsTimeStamp MIN_TS;
+    static const epicsUInt64 MAX_U64;
+    static const TimeStamp MAX_TS;
+    static const TimeStamp MIN_TS;
 
     bool valid;
-    epicsTimeStamp start;
-    epicsTimeStamp end;
+    TimeStamp start;
+    TimeStamp end;
 
     TimeSpan();
-    TimeSpan(const epicsTimeStamp & start, const epicsTimeStamp & end);
-    void update(const epicsTimeStamp & start, const epicsTimeStamp & end);
+    TimeSpan(const TimeStamp & start, const TimeStamp & end);
+    void update(const TimeStamp & start, const TimeStamp & end);
     void reset();
     double span_sec() const;
 };
@@ -47,8 +62,7 @@ class TableBuffer {
 public:
     typedef std::function<
         bool( /* Returns "done": true to stop iterating early, false to continue iterating.*/
-            const epicsTimeStamp & /* row timestamp */,
-            const TimeTable::PULSE_ID_T, /* row pulseId */
+            const TimeStamp &, /* row timestamp */
             const std::vector<pvxs::shared_array<const void>> & /* column containers */,
             size_t /* row index within each column container */
         )
@@ -56,8 +70,8 @@ public:
 
 private:
     std::unique_ptr<TimeTable> type_;
-    epicsTimeStamp start_ts_;
-    epicsTimeStamp end_ts_;
+    TimeStamp start_ts_;
+    TimeStamp end_ts_;
     std::deque<TimeTableValue> buffer_;
     size_t inner_idx_;
 
@@ -110,13 +124,11 @@ public:
      */
     void consume_each_row(ConsumeFunc f);
 
-    /* Extracts the time difference between rows into the given `diffs` map.
-     * `diffs` is a map with the keys being the time difference (in ns)
-     * between rows and the values being the number of times that
-     * the time difference appears.
-     * Returns the number of processed differences.
-     */
-    size_t extract_time_diffs(std::map<epicsInt64, size_t> & diffs) const;
+    /* Extracts all timestamps into a set */
+    size_t extract_timestamps_between(
+        const TimeStamp & start, const TimeStamp & end,
+        std::set<TimeStamp> & timestamps
+    ) const;
 };
 
 }

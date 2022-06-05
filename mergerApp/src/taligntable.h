@@ -8,18 +8,16 @@
 
 #include <pvxs/data.h>
 
-#include <tab/util.h>
-
 #include "tablebuffer.h"
 
 namespace tabulator {
 
 struct TimeBounds {
     bool valid;
-    epicsTimeStamp earliest_start;
-    epicsTimeStamp earliest_end;
-    epicsTimeStamp latest_start;
-    epicsTimeStamp latest_end;
+    TimeStamp earliest_start;
+    TimeStamp earliest_end;
+    TimeStamp latest_start;
+    TimeStamp latest_end;
 
     TimeBounds();
 
@@ -34,10 +32,10 @@ struct TimeBounds {
             if (!it->valid)
                 continue;
 
-            earliest_start = util::ts::min(it->start, earliest_start);
-            earliest_end   = util::ts::min(it->end,   earliest_end);
-            latest_start   = util::ts::max(it->start, latest_start);
-            latest_end     = util::ts::max(it->end,   latest_end);
+            earliest_start = std::min(it->start, earliest_start);
+            earliest_end   = std::min(it->end,   earliest_end);
+            latest_start   = std::max(it->start, latest_start);
+            latest_end     = std::max(it->end,   latest_end);
 
             valid = true;
         }
@@ -50,7 +48,6 @@ class TimeAlignedTable {
 
 private:
     std::vector<std::string> pvlist_;
-    epicsUInt32 alignment_usec_;
     const std::string label_sep_;
     const std::string col_sep_;
 
@@ -63,7 +60,7 @@ private:
         const nt::NTTable::ColumnSpec & spec);
 
 public:
-    TimeAlignedTable(const std::vector<std::string> & pvlist, epicsUInt32 alignment_usec,
+    TimeAlignedTable(const std::vector<std::string> & pvlist,
         const std::string & label_sep, const std::string & col_sep);
 
     // Returns true if all inner buffers were initialized (got at least 1 update),
@@ -76,7 +73,7 @@ public:
     void push(size_t idx, pvxs::Value value);
 
     // Extract a time-aligned table chunk, between start and end
-    pvxs::Value extract(const epicsTimeStamp & start, const epicsTimeStamp & end);
+    pvxs::Value extract(const TimeStamp & start, const TimeStamp & end);
 
     // Build an empty value
     pvxs::Value create() const;

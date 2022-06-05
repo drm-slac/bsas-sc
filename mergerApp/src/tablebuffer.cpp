@@ -1,36 +1,36 @@
 #include "tablebuffer.h"
 
-#include <tab/util.h>
+#include <epicsStdio.h>
 
 namespace tabulator {
 
-namespace ts = util::ts;
-
 // TODO: move timespan to util::ts
 const epicsUInt32 TimeSpan::MAX_U32 = std::numeric_limits<epicsUInt32>::max();
-const epicsTimeStamp TimeSpan::MAX_TS = { MAX_U32, 999999999 };
-const epicsTimeStamp TimeSpan::MIN_TS = { 0, 0 };
+const epicsUInt64 TimeSpan::MAX_U64 = std::numeric_limits<epicsUInt64>::max();
+const TimeStamp TimeSpan::MAX_TS { { MAX_U32, 999999999 }, MAX_U64 };
+const TimeStamp TimeSpan::MIN_TS { { 0, 0 }, 0 };
 
 TimeSpan::TimeSpan() {
     reset();
 }
 
-TimeSpan::TimeSpan(const epicsTimeStamp & start, const epicsTimeStamp & end)
+TimeSpan::TimeSpan(const TimeStamp & start, const TimeStamp & end)
 : valid(true), start(start), end(end)
 {
-    if (!epicsTimeGreaterThanEqual(&end, &start)) {
+    if (start > end) {
         char message[1024];
         epicsSnprintf(message, sizeof(message),
-            "TimeSpan expected to have start=%u.%09u before end=%u%.09u",
-            start.secPastEpoch, start.nsec, end.secPastEpoch, end.nsec);
+            "TimeSpan expected to have start=%u.%09u.%016lX before end=%u%.09u.%016lX",
+            start.ts.secPastEpoch, start.ts.nsec, start.utag,
+            end.ts.secPastEpoch, end.ts.nsec, end.utag);
         throw std::runtime_error(message);
     }
 }
 
-void TimeSpan::update(const epicsTimeStamp & start, const epicsTimeStamp & end) {
+void TimeSpan::update(const TimeStamp & start, const TimeStamp & end) {
     valid = true;
-    this->start = ts::min(this->start, start);
-    this->end = ts::max(this->end, end);
+    this->start = std::min(this->start, start);
+    this->end = std::max(this->end, end);
 }
 
 void TimeSpan::reset() {
@@ -41,7 +41,31 @@ void TimeSpan::reset() {
 
 double TimeSpan::span_sec() const {
     assert(valid);
-    return epicsTimeDiffInSeconds(&end, &start);
+    return epicsTimeDiffInSeconds(&end.ts, &start.ts);
+}
+
+bool TimeStamp::operator == ( const TimeStamp & rhs) const {
+    return epicsTimeEqual(&this->ts, &rhs.ts) && this->utag == rhs.utag;
+}
+
+bool TimeStamp::operator < ( const TimeStamp & rhs) const {
+    return epicsTimeLessThan(&this->ts, &rhs.ts) || (epicsTimeEqual(&this->ts, &rhs.ts) && this->utag < rhs.utag);
+}
+
+bool TimeStamp::operator != ( const TimeStamp & rhs) const {
+    return !(*this == rhs);
+}
+
+bool TimeStamp::operator <= ( const TimeStamp & rhs) const {
+    return (*this < rhs) || (*this == rhs);
+}
+
+bool TimeStamp::operator >= ( const TimeStamp & rhs) const {
+    return !(*this < rhs);
+}
+
+bool TimeStamp::operator > ( const TimeStamp & rhs) const {
+    return !(*this <= rhs);
 }
 
 void TableBuffer::update_timestamps() {
@@ -144,16 +168,11 @@ std::pair<size_t, size_t> TableBuffer::consume_each_row_inner(ConsumeFunc f) {
         inner_idx = outer_idx == 0 ? inner_idx_ : 0;
         for (;inner_idx < n; ++inner_idx) {
 
-            // TODO: we use pulse id as a separate value, but once EPICS BASE can
-            // be updated, it should be put into epicsTimeStamp in the UTAG field.
-            epicsTimeStamp ts {
-                seconds_past_epoch[inner_idx],
-                nanoseconds[inner_idx]
+            TimeStamp ts {
+                { seconds_past_epoch[inner_idx], nanoseconds[inner_idx] }, pulse_id[inner_idx]
             };
 
-            auto p_id = pulse_id[inner_idx];
-
-            bool done = f(ts, p_id, col_vals, inner_idx);
+            bool done = f(ts, col_vals, inner_idx);
 
             if (done)
                 return std::make_pair(outer_idx, inner_idx);
@@ -178,31 +197,29 @@ void TableBuffer::consume_each_row(ConsumeFunc f) {
     update_timestamps();
 }
 
-size_t TableBuffer::extract_time_diffs(std::map<epicsInt64, size_t> & diffs) const {
+size_t TableBuffer::extract_timestamps_between(const TimeStamp & start, const TimeStamp & end,
+    std::set<TimeStamp> & timestamps) const
+{
     if (buffer_.empty())
         return 0;
 
-    // Extract from the first buffer only
-    const auto & buf = buffer_.front();
-
-    auto seconds = buf.get_column_as<const TimeTable::SECONDS_PAST_EPOCH_T>(TimeTable::SECONDS_PAST_EPOCH_COL);
-    auto nanoseconds = buf.get_column_as<const TimeTable::NANOSECONDS_T>(TimeTable::NANOSECONDS_COL);
-    size_t nrows = std::min(seconds.size(), nanoseconds.size());
-
-    if (nrows < 2)
-        return 0;
-
     size_t processed = 0;
-    epicsTimeStamp prev { seconds[0], nanoseconds[0] };
 
-    for (size_t row = 1; row < nrows; ++row) {
-        epicsTimeStamp curr { seconds[row], nanoseconds[row] };
-        epicsInt64 diff = epicsTimeDiffInNS(&curr, &prev);
+    for (const auto & buf : buffer_) {
+        auto seconds = buf.get_column_as<const TimeTable::SECONDS_PAST_EPOCH_T>(TimeTable::SECONDS_PAST_EPOCH_COL);
+        auto nanoseconds = buf.get_column_as<const TimeTable::NANOSECONDS_T>(TimeTable::NANOSECONDS_COL);
+        auto utag = buf.get_column_as<const TimeTable::PULSE_ID_T>(TimeTable::PULSE_ID_COL);
 
+        size_t nrows = std::min(std::min(seconds.size(), nanoseconds.size()), utag.size());
 
-        diffs[diff] += 1;
-        ++processed;
-        prev = curr;
+        for (size_t row = 0; row < nrows; ++row) {
+            TimeStamp ts { { seconds[row], nanoseconds[row] }, utag[row]};
+
+            if (ts >= start && ts < end) {
+                timestamps.insert(ts);
+                ++processed;
+            }
+        }
     }
 
     return processed;

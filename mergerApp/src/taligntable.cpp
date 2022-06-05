@@ -1,5 +1,4 @@
 #include "taligntable.h"
-#include <tab/util.h>
 
 #include <vector>
 #include <set>
@@ -9,6 +8,7 @@
 #include <epicsTime.h>
 #include <epicsMutex.h>
 #include <epicsVersion.h>
+#include <epicsStdio.h>
 
 #include <pvxs/log.h>
 #include <pvxs/sharedArray.h>
@@ -61,37 +61,6 @@ void TimeAlignedTable::initialize() {
             return;
     }
 
-    // Auto-detect alignment if needed
-    if (alignment_usec_ == 0) {
-        std::map<epicsInt64, size_t> diffs_ns;
-        size_t processed = 0;
-
-        for (const auto & buf : buffers_)
-            processed += buf.extract_time_diffs(diffs_ns);
-
-        // Pick the "most popular" (statistical mode) time difference
-        epicsInt64 diff_ns = 0;
-        size_t max_diff_count = 0;
-
-        for (auto & diff_it : diffs_ns) {
-            if (diff_it.second > max_diff_count) {
-                diff_ns = diff_it.first;
-                max_diff_count = diff_it.second;
-            }
-        }
-
-        log_info_printf(LOG, "auto-detected alignment-usec=%lld us, (found in %lu / %lu differences)\n",
-            diff_ns / 1000, max_diff_count, processed);
-
-        if (diff_ns <= 0)
-            throw std::runtime_error("Auto-detected alignment-usec is negative or zero");
-
-        if (diff_ns > std::numeric_limits<epicsUInt32>::max())
-            throw std::runtime_error("Auto-detected alignment-usec would overflow");
-
-        alignment_usec_ = diff_ns / 1000;
-    }
-
     // Build type
     for (const auto & buf : buffers_) {
         const auto & pvname = pvlist_[idx];
@@ -106,12 +75,11 @@ void TimeAlignedTable::initialize() {
     type_.reset(new TimeTable(data_columns));
 }
 
-TimeAlignedTable::TimeAlignedTable(const std::vector<std::string> & pvlist, epicsUInt32 alignment_usec,
+TimeAlignedTable::TimeAlignedTable(const std::vector<std::string> & pvlist,
     const std::string & label_sep, const std::string & col_sep)
-: pvlist_(pvlist), alignment_usec_(alignment_usec), label_sep_(label_sep), col_sep_(col_sep), lock_(),
-  buffers_(pvlist.size()), type_()
+: pvlist_(pvlist), label_sep_(label_sep), col_sep_(col_sep), lock_(), buffers_(pvlist.size()), type_()
 {
-    log_debug_printf(LOG, "TimeAlignedTable(%lu PVs, align=%u us)\n", pvlist.size(), alignment_usec);
+    log_debug_printf(LOG, "TimeAlignedTable(%lu PVs)\n", pvlist.size());
 }
 
 bool TimeAlignedTable::initialized() const {
@@ -212,54 +180,56 @@ static void set_empty_row(std::vector<pvxs::shared_array<void>> & dest, size_t i
     }
 }
 
-pvxs::Value TimeAlignedTable::extract(const epicsTimeStamp & start, const epicsTimeStamp & end)
-{
+pvxs::Value TimeAlignedTable::extract(const TimeStamp & start_ts, const TimeStamp & end_ts) {
     Guard G(lock_);
 
     // Sanity check
-    if (!epicsTimeGreaterThanEqual(&end, &start)) {
+    if (start_ts > end_ts) {
         char message[1024];
-        epicsSnprintf(message, sizeof(message), "TimeAlignedTable::extract: Expected start=%u.%09u to be before end=%u.%09u",
-            start.secPastEpoch, start.nsec, end.secPastEpoch, end.nsec);
+        epicsSnprintf(message, sizeof(message),
+            "TimeAlignedTable::extract: Expected start=%u.%09u.%016lX to be before end=%u.%09u.%016lX",
+            start_ts.ts.secPastEpoch, start_ts.ts.nsec, start_ts.utag,
+            end_ts.ts.secPastEpoch, end_ts.ts.nsec, end_ts.utag);
         throw std::runtime_error(message);
     }
 
-    epicsTimeStamp start_ts = util::ts::aligned_usec(start, alignment_usec_);
-    epicsTimeStamp end_ts = util::ts::aligned_usec(end, alignment_usec_);
+    // Sorted unique timestamps
+    std::set<TimeStamp> timestamps;
 
-    epicsUInt64 timespan_nsec = epicsTimeDiffInNS(&end_ts, &start_ts);
-    size_t num_rows = timespan_nsec / (alignment_usec_ * util::ts::NSEC_PER_USEC);
+    for (const auto & buf : buffers_)
+        buf.extract_timestamps_between(start_ts, end_ts, timestamps);
 
-    log_debug_printf(LOG, "extract(start=%u.%09u, end=%u.%09u) --> %lu rows\n",
-        start.secPastEpoch, start.nsec, end.secPastEpoch, end.nsec, num_rows);
+    size_t num_rows = timestamps.size();
 
-    // Generate output columns and Value
+    log_debug_printf(LOG, "extract(start=%u.%09u.%016lX, end=%u.%09u.%016lX) --> %lu rows\n",
+        start_ts.ts.secPastEpoch, start_ts.ts.nsec, start_ts.utag,
+        end_ts.ts.secPastEpoch, end_ts.ts.nsec, end_ts.utag, num_rows);
+
+    // Prepare output columns and Value
     std::vector<pvxs::shared_array<void>> time_columns;
     std::vector<pvxs::shared_array<void>> data_columns;
     std::vector<pvxs::shared_array<void>> output_columns;
     TimeTableValue output_value(type_->create());
 
-    // Generate timestamps
+    // Generate timestamp arrays
     {
-        pvxs::shared_array<epicsUInt32> secondsPastEpoch(num_rows);
-        pvxs::shared_array<epicsUInt32> nanoseconds(num_rows);
+        pvxs::shared_array<uint32_t> secondsPastEpoch(num_rows);
+        pvxs::shared_array<uint32_t> nanoseconds(num_rows);
+        pvxs::shared_array<uint64_t> userTags(num_rows);
 
-        epicsTimeStamp ts = start_ts;
-        for (size_t i = 0; i < num_rows; ++i) {
-            secondsPastEpoch[i] = ts.secPastEpoch;
-            nanoseconds[i] = ts.nsec;
-            util::ts::add_usec(ts, alignment_usec_);
+        size_t i = 0;
+        for (const auto & ts : timestamps) {
+            secondsPastEpoch[i] = ts.ts.secPastEpoch;
+            nanoseconds[i] = ts.ts.nsec;
+            userTags[i] = ts.utag;
+            ++i;
         }
 
         // Add timestamps to output columns
         time_columns.emplace_back(secondsPastEpoch.castTo<void>());
         time_columns.emplace_back(nanoseconds.castTo<void>());
+        time_columns.emplace_back(userTags.castTo<void>());
     }
-
-    // Real pulseId
-    pvxs::shared_array<TimeTable::PULSE_ID_T> pulseId(num_rows, 0);
-    std::vector<bool> pulseId_set(num_rows, false);
-    std::vector<size_t> pulseId_mismatch;
 
     // Extract values from each of our buffers (each buffer contains updates for a single input Table PV)
     for (auto & buf : buffers_) {
@@ -269,42 +239,31 @@ pvxs::Value TimeAlignedTable::extract(const epicsTimeStamp & start, const epicsT
 
         // Iterate over each result row
         size_t row = 0;
-        buf.consume_each_row([this, num_rows, &row, start_ts, end_ts, &pulseId, &pulseId_set, &pulseId_mismatch, &valid, &column_values](
-            const epicsTimeStamp & buf_ts,
-            const TimeTable::PULSE_ID_T pulse_id,
+        auto row_ts_it = timestamps.begin();
+
+        buf.consume_each_row([this, num_rows, &row, &row_ts_it, start_ts, end_ts, &valid, &column_values](
+            const TimeStamp & buf_row_ts,
             const std::vector<pvxs::shared_array<const void>> & buf_cols,
             size_t buf_idx
         ) -> bool {
-            epicsTimeStamp row_ts = start_ts;
-            util::ts::add_usec(row_ts, row*alignment_usec_);
-            epicsTimeStamp buf_row_ts = util::ts::aligned_usec(buf_ts, alignment_usec_);
+            TimeStamp row_ts = *row_ts_it;
 
             // Check if we are past the end, stop if we are
-            if (row >= num_rows || epicsTimeGreaterThan(&buf_row_ts, &end_ts))
+            if (row >= num_rows || buf_row_ts > end_ts)
                 return true;
 
             // If timestamps are equal, values are valid
-            if (epicsTimeEqual(&buf_row_ts, &row_ts)) {
+            if (buf_row_ts == row_ts) {
                 valid[row] = true;
-
-                // NOTE: we potentially override the pulseId for the row,
-                // but the assumption is that if the timestamp matches,
-                // pulseId will be the same
-                if (!pulseId_set[row]) {
-                    pulseId[row] = pulse_id;
-                    pulseId_set[row] = true;
-                } else if (pulseId[row] != pulse_id) {
-                    pulseId_mismatch.push_back(row);
-                }
-
                 copy_row(column_values, row, buf_cols, buf_idx);
                 ++row;
+                ++row_ts_it;
                 return false;
             }
 
             // If the buffer is ahead of us (in time), it means there are missing values.
             // Skip this iteration (by filling in invalid values)
-            if (epicsTimeGreaterThan(&buf_row_ts, &row_ts)) {
+            if (buf_row_ts > row_ts) {
                 valid[row] = false;
                 set_empty_row(column_values, row);
                 return false;
@@ -313,6 +272,7 @@ pvxs::Value TimeAlignedTable::extract(const epicsTimeStamp & start, const epicsT
             // If we got here, it means the buffer is behind us (in time).
             // Skip this iteration (do nothing)
             ++row;
+            ++row_ts_it;
             return false;
         });
 
@@ -322,27 +282,16 @@ pvxs::Value TimeAlignedTable::extract(const epicsTimeStamp & start, const epicsT
             set_empty_row(column_values, row);
         }
 
-        // Warn if there were pulseId mismatches
-        size_t num_mismatches = pulseId_mismatch.size();
-        if (num_mismatches > 0) {
-            log_warn_printf(LOG,
-                "extract() - there were %lu pulseId mismatches in time-aligned rows. First mismatched row index: %lu, last: %lu\n",
-                num_mismatches, pulseId_mismatch[0], pulseId_mismatch[num_mismatches-1]);
-        }
-
         // We built all columns from this buffer, save them
         log_debug_printf(LOG, "extract() - generated %lu data columns\n", column_values.size() + 1);
         data_columns.emplace_back(valid.castTo<void>());
         data_columns.insert(data_columns.end(), column_values.begin(), column_values.end());
     }
 
-    time_columns.emplace_back(pulseId.castTo<void>());
     log_debug_printf(LOG, "extract() - generated %lu timestamp columns\n", time_columns.size());
-
     output_columns.insert(output_columns.end(), time_columns.begin(), time_columns.end());
     output_columns.insert(output_columns.end(), data_columns.begin(), data_columns.end());
 
-    pulseId.clear();
     time_columns.clear();
     data_columns.clear();
 

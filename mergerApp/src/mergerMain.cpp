@@ -18,7 +18,6 @@
 #include <clipp.h>
 
 #include <tab/nttable.h>
-#include <tab/util.h>
 
 #include <iostream>
 
@@ -31,6 +30,7 @@ DEFINE_LOGGER(SERVER_LOG, "merger.server");
 
 using tabulator::nt::NTTable;
 using tabulator::TimeSpan;
+using tabulator::TimeStamp;
 using tabulator::TimeBounds;
 using tabulator::TimeAlignedTable;
 
@@ -248,13 +248,13 @@ public:
                 continue;
             }
 
-            epicsTimeStamp start = bounds.earliest_start;
-            epicsTimeStamp end = bounds.earliest_start;
-            epicsTimeAddSeconds(&end, period_);
+            TimeStamp start = bounds.earliest_start;
+            TimeStamp end = start;
+            epicsTimeAddSeconds(&end.ts, period_);
 
             log_info_printf(REACTOR_LOG, "Extracting merged table spanning %.3f sec: %u.%u -- %u.%u\n",
-                epicsTimeDiffInSeconds(&end, &start), start.secPastEpoch, start.nsec,
-                end.secPastEpoch, end.nsec);
+                epicsTimeDiffInSeconds(&end.ts, &start.ts), start.ts.secPastEpoch, start.ts.nsec,
+                end.ts.secPastEpoch, end.ts.nsec);
 
             auto value = taligned_table_->extract(start, end);
             pv_.post(value);
@@ -282,7 +282,6 @@ static std::vector<std::string> pvlist_from_file(const std::string & filename) {
 
 int main (int argc, char *argv[]) {
     std::string pvlist_file;
-    uint32_t alignment_usec = 0;
     double period_sec;
     double timeout_sec = 0.0;
     std::string pvname;
@@ -295,10 +294,6 @@ int main (int argc, char *argv[]) {
         clipp::required("--pvlist")
             .doc("File with list of input NTTable PVs to be merged (newline-separated).")
             & clipp::value("pvlist", pvlist_file),
-
-        clipp::option("--alignment-usec")
-            .doc("Time-alignment period, in micro seconds. Default: 0 (auto-detect based on first update).")
-            & clipp::value("alignment_usec", alignment_usec),
 
         clipp::required("--period-sec")
             .doc("Update publication period, in seconds.")
@@ -347,7 +342,6 @@ int main (int argc, char *argv[]) {
     // Create
     log_info_printf(LOG, "Starting%s\n", "");
     log_info_printf(LOG, "  pvlist=%s [%lu PVs]\n", pvlist_file.c_str(), pvlist.size());
-    log_info_printf(LOG, "  alignment=%u us%s\n", alignment_usec, alignment_usec == 0 ? " (auto-detect)" : "");
     log_info_printf(LOG, "  period=%.6f s\n", period_sec);
     log_info_printf(LOG, "  timeout=%.6f s%s\n", timeout_sec, timeout_sec == 0 ? " (wait forever)" : "");
     log_info_printf(LOG, "  pvname=%s\n", pvname.c_str());
@@ -356,7 +350,7 @@ int main (int argc, char *argv[]) {
 
     // Shared objects
     auto dead_queue = std::make_shared<pvxs::MPMCFIFO<Runnable*>>();
-    auto taligned_table(std::make_shared<TimeAlignedTable>(pvlist, alignment_usec, label_sep, col_sep));
+    auto taligned_table(std::make_shared<TimeAlignedTable>(pvlist, label_sep, col_sep));
     pvxs::server::SharedPV pv(pvxs::server::SharedPV::buildReadonly());
 
     // Prepare workers

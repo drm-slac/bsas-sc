@@ -7,6 +7,7 @@
 #include <alarm.h>
 #include <devSup.h>
 #include <epicsVersion.h>
+#include <epicsStdio.h>
 
 #include <vector>
 #include <iostream>
@@ -21,7 +22,6 @@
 #include <pvxs/nt.h>
 
 #include <tab/nttable.h>
-#include <tab/util.h>
 #include <tab/timetable.h>
 
 #define PI 3.14159265
@@ -33,8 +33,6 @@ using tabulator::TimeTable;
 using tabulator::TimeTableScalar;
 using tabulator::TimeTableStat;
 using tabulator::TimeTableValue;
-
-namespace util = tabulator::util;
 
 enum Config : uint8_t {
     TIMESTAMP_UTAG      = 0x01,
