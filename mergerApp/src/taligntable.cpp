@@ -57,16 +57,16 @@ void TimeAlignedTable::initialize() {
 
     // Check that all buffers are initialized
     for (const auto & buf : buffers_) {
-        if (!buf.initialized())
+        if (!buf.second.initialized())
             return;
     }
 
     // Build type
     for (const auto & buf : buffers_) {
-        const auto & pvname = pvlist_[idx];
+        const auto & pvname = buf.first;
         data_columns.emplace_back(prefixed_colspec(idx, buffers_.size(), pvname, VALID));
 
-        for (const auto & spec : buf.data_columns())
+        for (const auto & spec : buf.second.data_columns())
             data_columns.emplace_back(prefixed_colspec(idx, buffers_.size(), pvname, spec));
 
         ++idx;
@@ -77,14 +77,36 @@ void TimeAlignedTable::initialize() {
 
 TimeAlignedTable::TimeAlignedTable(const std::vector<std::string> & pvlist,
     const std::string & label_sep, const std::string & col_sep)
-: pvlist_(pvlist), label_sep_(label_sep), col_sep_(col_sep), lock_(), buffers_(pvlist.size()), type_()
+: label_sep_(label_sep), col_sep_(col_sep), lock_(), buffers_(), type_()
 {
+    for (auto pv : pvlist)
+        buffers_[pv] = {};
+
     log_debug_printf(LOG, "TimeAlignedTable(%lu PVs)\n", pvlist.size());
 }
 
 bool TimeAlignedTable::initialized() const {
     Guard G(lock_);
     return type_.get() != 0;
+}
+
+size_t TimeAlignedTable::force_initialize() {
+    Guard G(lock_);
+
+    std::set<std::string> bufs_to_remove;
+
+    for (auto & buf : buffers_) {
+        if (!buf.second.initialized()) {
+            bufs_to_remove.insert(buf.first);
+            log_warn_printf(LOG, "Dropping '%s'\n", buf.first.c_str());
+        }
+    }
+
+    for (auto & name : bufs_to_remove)
+        buffers_.erase(name);
+
+    initialize();
+    return buffers_.size();
 }
 
 TimeBounds TimeAlignedTable::get_timebounds() const {
@@ -94,21 +116,18 @@ TimeBounds TimeAlignedTable::get_timebounds() const {
     std::vector<TimeSpan> timespans;
 
     for (const auto & buf : buffers_)
-        timespans.emplace_back(buf.time_span());
+        timespans.emplace_back(buf.second.time_span());
 
     return TimeBounds(timespans.begin(), timespans.end());
 }
 
-void TimeAlignedTable::push(size_t idx, pvxs::Value value) {
-    log_debug_printf(LOG, "push(buf_idx=%lu, value.valid=%d)\n", idx, value.valid());
-
-    if (idx >= buffers_.size())
-        throw std::logic_error("Can't push to idx past the end");
+void TimeAlignedTable::push(const std::string & name, pvxs::Value value) {
+    log_debug_printf(LOG, "push(name=%s, value.valid=%d)\n", name.c_str(), value.valid());
 
     Guard G(lock_);
 
     // Push the value to the correct buffer
-    buffers_[idx].push(value);
+    buffers_.at(name).push(value);
 
     // Create type if we don't have it already
     initialize();
@@ -197,7 +216,7 @@ pvxs::Value TimeAlignedTable::extract(const TimeStamp & start_ts, const TimeStam
     std::set<TimeStamp> timestamps;
 
     for (const auto & buf : buffers_)
-        buf.extract_timestamps_between(start_ts, end_ts, timestamps);
+        buf.second.extract_timestamps_between(start_ts, end_ts, timestamps);
 
     size_t num_rows = timestamps.size();
 
@@ -235,13 +254,13 @@ pvxs::Value TimeAlignedTable::extract(const TimeStamp & start_ts, const TimeStam
     for (auto & buf : buffers_) {
         // These will hold the final extracted values
         pvxs::shared_array<bool> valid(num_rows);
-        auto column_values = buf.allocate_containers(num_rows);
+        auto column_values = buf.second.allocate_containers(num_rows);
 
         // Iterate over each result row
         size_t row = 0;
         auto row_ts_it = timestamps.begin();
 
-        buf.consume_each_row([this, num_rows, &row, &row_ts_it, start_ts, end_ts, &valid, &column_values](
+        buf.second.consume_each_row([this, num_rows, &row, &row_ts_it, start_ts, end_ts, &valid, &column_values](
             const TimeStamp & buf_row_ts,
             const std::vector<pvxs::shared_array<const void>> & buf_cols,
             size_t buf_idx

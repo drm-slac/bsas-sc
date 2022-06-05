@@ -1,6 +1,7 @@
 #ifndef TAB_TALIGNTABLE_H
 #define TAB_TALIGNTABLE_H
 
+#include <map>
 #include <vector>
 
 #include <epicsTime.h>
@@ -47,12 +48,11 @@ struct TimeBounds {
 class TimeAlignedTable {
 
 private:
-    std::vector<std::string> pvlist_;
     const std::string label_sep_;
     const std::string col_sep_;
 
     mutable epicsMutex lock_;
-    std::vector<TableBuffer> buffers_;
+    std::map<std::string, TableBuffer> buffers_;
     std::unique_ptr<TimeTable> type_;
 
     void initialize();
@@ -67,10 +67,16 @@ public:
     // false otherwise
     bool initialized() const;
 
+    // Forces this table to be initialized with whatever buffers are available
+    // Internal buffers that are not initialized by the time this is called will be dropped.
+    // Returns the number of remaining internal buffers
+    size_t force_initialize();
+
     TimeBounds get_timebounds() const;
 
     // Push a new update to one of the buffers
-    void push(size_t idx, pvxs::Value value);
+    // Throws std::out_of_range if name is not part of this table
+    void push(const std::string & name, pvxs::Value value);
 
     // Extract a time-aligned table chunk, between start and end
     pvxs::Value extract(const TimeStamp & start, const TimeStamp & end);

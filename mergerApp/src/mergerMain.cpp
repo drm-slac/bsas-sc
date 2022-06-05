@@ -125,7 +125,11 @@ public:
                     continue;
 
                 //std::cout << sub->name() << std::endl << update.get();
-                taligned_table_->push(col_idx, value);
+                taligned_table_->push(sub->name(), value);
+
+            } catch (std::out_of_range & ex) {
+                log_warn_printf(LISTENER_LOG, "Can't push new data for '%s', cancelling sub\n", sub->name().c_str());
+                sub->cancel();
             } catch (pvxs::client::Connected & ex) {
                 log_info_printf(LISTENER_LOG, "PV connected: %s\n", sub->name().c_str());
             } catch (pvxs::client::Disconnect & ex) {
@@ -187,10 +191,15 @@ public:
         if (!running_)
             return false;
 
-        if (!taligned_table_->initialized()) {
-            log_err_printf(REACTOR_LOG, "Failed to connect to all PVs... Exiting.%s\n", "");
+        size_t remaining = taligned_table_->force_initialize();
+
+        if (!remaining) {
+            log_err_printf(REACTOR_LOG, "Failed to connect to any PV... Exiting.%s\n", "");
             return false;
         }
+
+        if (!taligned_table_->initialized())
+            throw std::logic_error("Table should be initialized by this point");
 
         return true;
     }
