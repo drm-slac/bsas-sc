@@ -102,6 +102,9 @@ void Writer::build_file_structure(size_t chunk_size) {
     auto data_group = file_->createGroup(DATA_GROUP);
     log_debug_printf(LOG, "  Created data group %s\n", data_group.getPath().c_str());
 
+    auto root_group = data_group.createGroup(root_group_);
+    log_debug_printf(LOG, "  Created root group %s\n", root_group.getPath().c_str());
+
     // Metadata
     std::set<std::string> pvnames_set;          // Set of seen PV names
     std::vector<std::string> pvnames;           // PV names, in order (e.g. ["SIM:STAT:0", "SIM:STAT:1", ...])
@@ -117,7 +120,7 @@ void Writer::build_file_structure(size_t chunk_size) {
     }
 
     for (auto c : type_->time_columns) {
-        auto ds = data_group.createDataSet(
+        auto ds = root_group.createDataSet(
             c.name,
             H5::DataSpace({0}, {H5::DataSpace::UNLIMITED}),
             pvxs_to_h5_type(c.type_code),
@@ -143,11 +146,11 @@ void Writer::build_file_structure(size_t chunk_size) {
             pvnames_set.insert(pvname);
             column_prefixes.push_back(column_prefix);
 
-            auto g = data_group.createGroup(column_prefix);
+            auto g = root_group.createGroup(column_prefix);
             g.createAttribute(ATTR_SIGNAL, pvname);
         }
 
-        auto group = data_group.getGroup(column_prefix);
+        auto group = root_group.getGroup(column_prefix);
 
         auto ds = group.createDataSet(
             column_suffix,
@@ -173,8 +176,10 @@ void Writer::build_file_structure(size_t chunk_size) {
     log_debug_printf(LOG, "Built file structure in %.3f sec\n", epicsTimeDiffInSeconds(&end, &start));
 }
 
-Writer::Writer(const std::string & input_pv, const std::string & path, const std::string & label_sep, const std::string & col_sep)
-:input_pv_(input_pv), type_(nullptr), file_path_(path), file_(new H5::File(path, H5F_ACC_EXCL)), label_sep_(label_sep), col_sep_(col_sep) {
+Writer::Writer(const std::string & input_pv, const std::string & path, const std::string & root_group,
+    const std::string & label_sep, const std::string & col_sep)
+:input_pv_(input_pv), type_(nullptr), file_path_(path), file_(new H5::File(path, H5F_ACC_EXCL)), root_group_(root_group),
+ label_sep_(label_sep), col_sep_(col_sep) {
     log_debug_printf(LOG, "Writing to file '%s'\n", path.c_str());
 }
 

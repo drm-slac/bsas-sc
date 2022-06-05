@@ -97,6 +97,7 @@ int main (int argc, char *argv[]) {
     std::string input_pv;
     std::string base_directory;
     std::string file_prefix;
+    std::string root_group;
     double timeout_sec;
     double max_duration_sec = 0;
     size_t max_size_mb = 0;
@@ -115,6 +116,10 @@ int main (int argc, char *argv[]) {
         clipp::required("--file-prefix")
             .doc("Prefix for generated HDF5 files")
             & clipp::value("file_prefix", file_prefix),
+
+        clipp::required("--root-group")
+            .doc("Name of the HDF5 group at the root of the file structure")
+            & clipp::value("root_group", root_group),
 
         clipp::required("--timeout-sec")
             .doc("If no updates are received within timeout (in seconds), close the file and exit. A value of 0 means wait forever")
@@ -159,6 +164,7 @@ int main (int argc, char *argv[]) {
     CHECK_ARG(input_pv.empty(), "Input PV must not be empty %s\n", "");
     CHECK_ARG(base_directory.empty(), "Base directory path must not be empty%s\n", "");
     CHECK_ARG(file_prefix.empty(), "File prefix must not be empty%s\n", "");
+    CHECK_ARG(root_group.empty(), "Root group must not be empty%s\n", "");
     CHECK_ARG(timeout_sec < 0.0, "Invalid timeout: %f seconds\n", timeout_sec);
     CHECK_ARG(max_duration_sec < 0.0, "Invalid duration: %f seconds\n", max_duration_sec);
 
@@ -173,6 +179,7 @@ int main (int argc, char *argv[]) {
     log_info_printf(LOG, "Starting%s\n", "");
     log_info_printf(LOG, "  input_pv=%s\n", input_pv.c_str());
     log_info_printf(LOG, "  output=%s/YYYY/MM/DD/%s_YYYYMMDD_hhmmss.h5\n", base_directory.c_str(), file_prefix.c_str());
+    log_info_printf(LOG, "  root group=%s\n", root_group.c_str());
     log_info_printf(LOG, "  timeout=%f s%s\n", timeout_sec, timeout_sec == 0.0 ? " (wait forever)" : "");
     log_info_printf(LOG, "  max duration=%f s%s\n", max_duration_sec, max_duration_sec == 0.0 ? " (no time limit)" : "");
     log_info_printf(LOG, "  max size=%lu MB%s\n", max_size_mb, max_size_mb == 0 ? " (no size limit)" : "");
@@ -264,7 +271,7 @@ int main (int argc, char *argv[]) {
                         if (!writer) {
                             epicsTimeGetCurrent(&start); // reset start time so the file has a consistent duration
                             std::string output_file = create_folder_and_file(base_directory, file_prefix, start);
-                            writer.reset(new tabulator::Writer(input_pv, output_file, label_sep, col_sep));
+                            writer.reset(new tabulator::Writer(input_pv, output_file, root_group, label_sep, col_sep));
                         }
 
                         writer->write(v);
