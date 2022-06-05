@@ -230,9 +230,10 @@ A standalone executable (not an IOC) that writes NTTables to HDF5 files.
 $ ./bin/linux-x86_64/writer --help
 SYNOPSIS
         ./bin/linux-x86_64/writer --input-pv <input_pv> --base-directory <base_directory>
-                                  --file-prefix <file_prefix> --timeout-sec <timeout_sec>
-                                  [--max-duration-sec <max_duration_sec>] [--max-size-mb
-                                  <max_size_mb>] [--label-sep <label_sep>] [--column-sep <col_sep>]
+                                  --file-prefix <file_prefix> --root-group <root_group>
+                                  --timeout-sec <timeout_sec> [--max-duration-sec
+                                  <max_duration_sec>] [--max-size-mb <max_size_mb>] [--label-sep
+                                  <label_sep>] [--column-sep <col_sep>]
 
 OPTIONS
         --input-pv  Name of the input PV
@@ -241,6 +242,9 @@ OPTIONS
 
         --file-prefix
                     Prefix for generated HDF5 files
+
+        --root-group
+                    Name of the HDF5 group at the root of the file structure
 
         --timeout-sec
                     If no updates are received within timeout (in seconds), close the file and exit.
