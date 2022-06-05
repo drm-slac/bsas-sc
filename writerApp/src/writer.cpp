@@ -160,7 +160,6 @@ void Writer::build_file_structure(size_t chunk_size) {
         ds.createAttribute(ATTR_COLUMN, c.name);
 
         datasets_.emplace(c.name, ds);
-
     }
 
     // Fill meta datasets
@@ -175,7 +174,7 @@ void Writer::build_file_structure(size_t chunk_size) {
 }
 
 Writer::Writer(const std::string & input_pv, const std::string & path, const std::string & label_sep, const std::string & col_sep)
-:input_pv_(input_pv), type_(nullptr), file_(new H5::File(path, H5F_ACC_EXCL)), label_sep_(label_sep), col_sep_(col_sep) {
+:input_pv_(input_pv), type_(nullptr), file_path_(path), file_(new H5::File(path, H5F_ACC_EXCL)), label_sep_(label_sep), col_sep_(col_sep) {
     log_debug_printf(LOG, "Writing to file '%s'\n", path.c_str());
 }
 
@@ -239,6 +238,10 @@ void Writer::write(pvxs::Value value) {
     file_->flush();
     epicsTimeGetCurrent(&end);
     log_debug_printf(LOG, "Wrote update to file in %.3f sec\n", epicsTimeDiffInSeconds(&end, &start));
+}
+
+std::string Writer::get_file_path() const {
+    return file_path_;
 }
 
 } // namespace tabulator

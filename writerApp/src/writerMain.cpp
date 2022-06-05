@@ -45,10 +45,49 @@ static bool is_err(StopReason reason) {
     }
 }
 
-static double seconds_since(epicsTimeStamp & ts) {
+static double seconds_since(const epicsTimeStamp & ts) {
     epicsTimeStamp now;
     epicsTimeGetCurrent(&now);
     return epicsTimeDiffInSeconds(&now, &ts);
+}
+
+static std::string create_folder_and_file(const std::string & base_directory, const std::string & file_prefix, const epicsTimeStamp & ts) {
+    // Generate full path to output file
+    struct tm ts_tm;
+    epicsTimeToTM(&ts_tm, NULL, &ts);
+
+    int year = 1900 + ts_tm.tm_year;
+    int month = ts_tm.tm_mon + 1;
+    int day = ts_tm.tm_mday;
+    int hour = ts_tm.tm_hour;
+    int minute = ts_tm.tm_min;
+    int second = ts_tm.tm_sec;
+
+    char output_file[4096];
+    epicsSnprintf(output_file, sizeof(output_file),
+        "%s/%d/%02d/%02d/%s_%d%02d%02d_%02d%02d%02d.h5",
+        base_directory.c_str(), year, month, day,
+        file_prefix.c_str(), year, month, day,
+        hour, minute, second);
+
+    // Create directory
+    std::stringstream output_dir;
+    output_dir.fill('0');
+    output_dir << base_directory;
+
+    std::vector<int> components = {year, month, day};
+    for (int component : components) {
+        output_dir << "/" << std::setw(2) << component;
+
+        std::string out_dir = output_dir.str();
+
+        log_debug_printf(LOG, "Creating '%s'\n", out_dir.c_str());
+
+        if (mkdir(out_dir.c_str(), 0777) < 0 && errno != EEXIST)
+            throw std::runtime_error(std::string("Failed to mkdir ") + out_dir + ": " + strerror(errno));
+    }
+
+    return output_file;
 }
 
 int main (int argc, char *argv[]) {
@@ -177,58 +216,33 @@ int main (int argc, char *argv[]) {
             epicsTimeStamp start;
             epicsTimeGetCurrent(&start);
 
-            // Generate full path to output file
-            struct tm start_tm;
-            epicsTimeToTM(&start_tm, NULL, &start);
+            std::unique_ptr<tabulator::Writer> writer = nullptr;
 
-            int year = 1900 + start_tm.tm_year;
-            int month = start_tm.tm_mon + 1;
-            int day = start_tm.tm_mday;
-            int hour = start_tm.tm_hour;
-            int minute = start_tm.tm_min;
-            int second = start_tm.tm_sec;
-
-            char output_file[4096];
-            epicsSnprintf(output_file, sizeof(output_file),
-                "%s/%d/%02d/%02d/%s_%d%02d%02d_%02d%02d%02d.h5",
-                base_directory.c_str(), year, month, day,
-                file_prefix.c_str(), year, month, day,
-                hour, minute, second);
-
-            // Create directory
-            std::stringstream output_dir;
-            output_dir.fill('0');
-            output_dir << base_directory;
-
-            std::vector<int> components = {year, month, day};
-            for (int component : components) {
-                output_dir << "/" << std::setw(2) << component;
-
-                std::string out_dir = output_dir.str();
-
-                log_debug_printf(LOG, "Creating '%s'\n", out_dir.c_str());
-
-                if (mkdir(out_dir.c_str(), 0777) < 0 && errno != EEXIST)
-                    throw std::runtime_error(std::string("Failed to mkdir ") + out_dir + ": " + strerror(errno));
-            }
-
-            tabulator::Writer writer(input_pv, output_file, label_sep, col_sep);
-
-            for(;;) {
+            for (;;) {
                 double elapsed_sec = seconds_since(start);
 
                 // Wait for something to happen
-                if (!event.wait(std::min(timeout_sec, max_duration_sec > 0 ? max_duration_sec - elapsed_sec : timeout_sec))) {
+                double wait_for_sec = std::min(
+                    timeout_sec,
+                    max_duration_sec > 0 ? max_duration_sec - elapsed_sec : timeout_sec
+                );
+                log_info_printf(LOG, "Waiting for %.0f sec for events\n", wait_for_sec);
+
+                if (!event.wait(wait_for_sec)) {
                     if (elapsed_sec > timeout_sec) {
                         // We timed-out waiting for a PV update. We are done, exit.
                         done = true;
                         stop_reason = StopReason::TIMEOUT;
                         break;
 
-                    } else {
-                        // We reached the maximum duration, exit the inner loop so a new file can be generated
+                    } else if (writer) {
+                        // A file is opened and we reached the maximum duration, exit the inner loop so a new file can be generated
                         log_info_printf(LOG, "File %s has duration of %.0f sec, which meets or exceeds maximum duration of %.0f sec\n",
-                            output_file, elapsed_sec, max_duration_sec);
+                            writer->get_file_path().c_str(), elapsed_sec, max_duration_sec);
+                        break;
+
+                    } else {
+                        log_info_printf(LOG, "Nothing happened%s\n", "");
                         break;
                     }
                 }
@@ -242,8 +256,19 @@ int main (int argc, char *argv[]) {
 
                 // There are updates, drain update queue
                 try {
-                    while (auto v = subscription->pop())
-                        writer.write(v);
+                    while (auto v = subscription->pop()) {
+                        if (!v)
+                            continue;
+
+                        // Ensure the file is created
+                        if (!writer) {
+                            epicsTimeGetCurrent(&start); // reset start time so the file has a consistent duration
+                            std::string output_file = create_folder_and_file(base_directory, file_prefix, start);
+                            writer.reset(new tabulator::Writer(input_pv, output_file, label_sep, col_sep));
+                        }
+
+                        writer->write(v);
+                    }
 
                 } catch (pvxs::client::Disconnect & ex) {
                     done = true;
@@ -253,15 +278,15 @@ int main (int argc, char *argv[]) {
 
                 // Check if the file is larger than the max size
                 struct stat s = {};
-                if (stat(output_file, &s) < 0)
-                    throw std::runtime_error(std::string("Failed to stat output file ") + output_file);
+                if (stat(writer->get_file_path().c_str(), &s) < 0)
+                    throw std::runtime_error(std::string("Failed to stat output file ") + writer->get_file_path());
 
                 size_t file_size_mb = s.st_size / 1024 / 1024;
 
                 if (file_size_mb >= max_size_mb) {
                     // We reached the maximum file size, exit the inner loop so a new file can be generated
                     log_info_printf(LOG, "File %s has size %lu MB, which meets or exceeds maximum size of %lu MB\n",
-                        output_file, file_size_mb, max_size_mb);
+                        writer->get_file_path().c_str(), file_size_mb, max_size_mb);
                     break;
                 }
             }

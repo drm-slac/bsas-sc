@@ -14,6 +14,7 @@ class Writer {
 private:
     std::string input_pv_;
     std::unique_ptr<TimeTable> type_;
+    std::string file_path_;
     std::unique_ptr<HighFive::File> file_;
     std::string label_sep_;
     std::string col_sep_;
@@ -25,6 +26,8 @@ public:
     Writer(const std::string & input_pv, const std::string & path,
         const std::string & label_sep, const std::string & col_sep);
     void write(pvxs::Value value);
+    std::string get_file_path() const;
+
 };
 
 } // namespace tabulator
