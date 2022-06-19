@@ -197,16 +197,28 @@ static void write_dataset(H5::DataSet & dataset, const TimeTableValue & value, c
 }
 
 void Writer::write(pvxs::Value value) {
+
+    if (!value) {
+        log_warn_printf(LOG, "Empty value, skip writing%s\n", "");
+        return;
+    }
+
+    // Check that the update has data to be written
+    size_t num_rows =  type_->wrap(value, false).get_column_as<TimeTable::SECONDS_PAST_EPOCH_T>(
+        TimeTable::SECONDS_PAST_EPOCH_COL
+    ).size();
+
+    if (num_rows == 0) {
+        log_warn_printf(LOG, "Zero rows, skip writing%s\n", "");
+        return;
+    }
+
     if (!type_) {
         log_debug_printf(LOG, "First update, extracting type%s\n", "");
         type_.reset(new TimeTable(value));
 
-        // Set chunk size to the size of this first update, based on the length of the secondsPastEpoch column
-        size_t chunk_size = type_->wrap(value, false).get_column_as<TimeTable::SECONDS_PAST_EPOCH_T>(
-            TimeTable::SECONDS_PAST_EPOCH_COL
-        ).size();
-
-        build_file_structure(chunk_size);
+        // Set chunk size to the size of this first update
+        build_file_structure(num_rows);
     }
 
     epicsTimeStamp start, end;
@@ -242,7 +254,7 @@ void Writer::write(pvxs::Value value) {
 
     file_->flush();
     epicsTimeGetCurrent(&end);
-    log_debug_printf(LOG, "Wrote update to file in %.3f sec\n", epicsTimeDiffInSeconds(&end, &start));
+    log_debug_printf(LOG, "Wrote update to file in %.3f sec (%lu rows)\n", epicsTimeDiffInSeconds(&end, &start), num_rows);
 }
 
 std::string Writer::get_file_path() const {
