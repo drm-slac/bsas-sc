@@ -1,3 +1,5 @@
+[TOC]
+
 # System Overview
 
 The Beam Synchronous Acquisition Service (BSAS) records data from devices which are synchronized with a beam pulse, specifically with the timing signal than marks the presence of a beam pulse.  LCLS-I can provide beam at 120 Hz, while LCLS-II can provide beam up to 1 MHz.  This document deals with acquisition and recording of data from LCLS-II devices.
