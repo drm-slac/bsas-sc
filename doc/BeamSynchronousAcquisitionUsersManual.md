@@ -1,47 +1,16 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-<title>Beam Synchronous Acquisition Service - User Guide</title>
-<link rel="stylesheet" type="text/css" href="https://www.slac.stanford.edu/grp/ad/css/base_cardinal.css">
-<link rel="stylesheet" type="text/css" href="https://www.slac.stanford.edu/grp/ad/css/addocs.css">
-<style>
-img {
-border: 1px;
-display: block;
-margin: auto;
-vertical-align:middle;
-max-height:100%;
-}
-</style>
-</head> 
-<body>
-
-<div id="masthead">
+<div id="pagehead">
     <a href="https://www.slac.stanford.edu/">
-      <img style="position: absolute; left: 20px; top: 4px" src="https://www.slac.stanford.edu/grp/ad/model/images/slacHeaderLogo.gif"
-        alt="SLAC National Accelerator Laboratory" width="182" height="24">
+        <img alt="SLAC logo" height="60" src="https://www6.slac.stanford.edu/sites/www6.slac.stanford.edu/files/slac-logo-primary-2.png" width="283"/>      
     </a>
 </div>
-<br />
 <hr />
-<br />
-<p style="font: 170% sans-serif; color: #660003; text-align: center">
-Beam Synchronous Acquisition Service - User's Guide
-</p>
-<p style="text-align:center">
-Doug Murray, SLAC, May 2022. <br />
+
+# Beam Synchronous Acquisition Service - User's Guide
+    
+Doug Murray, SLAC, May 2022<br />
 Revision 1.0, 04-May-2022, Initial Version.
-</p> 
-<!-- End Masthead -->
-
-This document is intended to support users of SLAC's **Beam Synchronous Acquisition Service**.
-  
-<p style="font-size:larger">
-TABLE OF CONTENTS
-</p>
-
-[TOC]
-
 <hr />
 
 # System Overview
