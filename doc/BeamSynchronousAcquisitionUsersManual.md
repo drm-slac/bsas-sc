@@ -1,5 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<title>Beam Synchronous Acquisition Service - User Guide</title>
+<link rel="stylesheet" type="text/css" href="https://www.slac.stanford.edu/grp/ad/css/base_cardinal.css">
+<link rel="stylesheet" type="text/css" href="https://www.slac.stanford.edu/grp/ad/css/addocs.css">
+<style>
+img {
+border: 1px;
+display: block;
+margin: auto;
+vertical-align:middle;
+max-height:100%;
+}
+</style>
+</head> 
+<body>
+
+<div id="masthead">
+    <a href="https://www.slac.stanford.edu/">
+      <img style="position: absolute; left: 20px; top: 4px" src="https://www.slac.stanford.edu/grp/ad/model/images/slacHeaderLogo.gif"
+        alt="SLAC National Accelerator Laboratory" width="182" height="24">
+    </a>
+</div>
+<br />
+<hr />
+<br />
+<p style="font: 170% sans-serif; color: #660003; text-align: center">
+Beam Synchronous Acquisition Service - User's Guide
+</p>
+<p style="text-align:center">
+Doug Murray, SLAC, May 2022. <br />
+Revision 1.0, 04-May-2022, Initial Version.
+</p> 
+<!-- End Masthead -->
+
+This document is intended to support users of SLAC's **Beam Synchronous Acquisition Service**.
+  
+<p style="font-size:larger">
+TABLE OF CONTENTS
+</p>
 
 [TOC]
+
+<hr />
 
 # System Overview
 
@@ -39,24 +82,24 @@ When the beam rate is less than 1 MHz, the FPGA has a correspondingly greater ti
 Offline access and online, live-time access
 ## Data File Location
 
-###	Copying Data
+### Copying Data
 
-##	Data File Structure
-###	Hierarchical Data Format (HDF)
+## Data File Structure
+### Hierarchical Data Format (HDF)
 
-###	Time stamps and Beam Pulse IDs
+### Time stamps and Beam Pulse IDs
 
-##	Programming Interfaces
-###	HDF Data Access from MATLAB
+## Programming Interfaces
+### HDF Data Access from MATLAB
 
-###	HDF Data Access from Python
+### HDF Data Access from Python
 
-###	HDF Data Access from C++
+### HDF Data Access from C++
 
-###	Direct Live Data Access
+### Direct Live Data Access
 
 #	System Operation
-##	Deployment Overview
+## Deployment Overview
 
-##	Subsystem Operations
-###	BSAS Manager Process
+## Subsystem Operations
+### BSAS Manager Process
