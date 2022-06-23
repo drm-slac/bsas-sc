@@ -58,41 +58,50 @@ def commandOptions( argv: list) -> list:
         cmdLine = ArgumentParser( description='Manage BSA Service')
 
         #
-        # required arguments
+        # basic arguments
         #
-        cmdLine.add_argument( '-f', '--pvfile',   dest='inputFile',     metavar='<PVListFile>',
-                                required=True,
+        cmdLine.add_argument( '-d', '--dir',       dest='workingDir',     metavar='<BaseWorkingDirectory>',
+                                default='.',
+                                help='Directory from which BSAS will operate')
+        cmdLine.add_argument( '-f', '--pvfile',    dest='inputFile',     metavar='<PVListFile>',
+                                default='pvlist',
                                 help='file containing input PV table names')
-        cmdLine.add_argument( '-o', '--output',   dest='mergedPVName',  metavar='<MergedPVName>',
-                                required=True,
+        cmdLine.add_argument( '-o', '--output',    dest='mergedPVName',  metavar='<MergedPVName>',
+                                default='SC-HXR-TBL',
                                 help='name of the merged NTTable PV made available to record.')
-        cmdLine.add_argument( '-t', '--target',   dest='targetBeamline',metavar='<TargetBeamlineName>',
-                                required=True,
+        cmdLine.add_argument( '-t', '--target',    dest='targetBeamline',metavar='<TargetBeamlineName>',
+                                default='SC-HXR',
                                 help='name of the target to which beam is being directed')
         cmdLine.add_argument( '-D', '--datadir',   dest='dataDirName',   metavar='<OutputDataDirectory>',
-                                required=True,
+                                default='./DATA',
                                 help='name of directory where data will be stored by date')
         cmdLine.add_argument( '-L', '--lockdir',   dest='lockDirName',   metavar='<LockFileDirectory>',
-                                required=True,
+                                default='./LOCKS',
                                 help='name of directory where lock files will be kept')
 
         #
         # at least one of these arguments must be present
         #
-        cmdLine.add_argument( '-m', '--merger',   dest='mergerApp',     metavar='<MergerProgram>',
+        cmdLine.add_argument( '-m', '--merger',    dest='useMerger',
+                                action='store_true',
+                                help='name of the process which merges PV tables')
+        cmdLine.add_argument( '-w', '--writer',    dest='useWriter',
+                                action='store_true',
+                                help='name of the process which saves the merged PV table')
+        cmdLine.add_argument( '-M', '--mergerApp', dest='mergerApp',     metavar='<MergerProgram>',
                                 default=None,
                                 help='name of the process which merges PV tables')
-        cmdLine.add_argument( '-w', '--writer',   dest='writerApp',     metavar='<WriterProgram>',
+        cmdLine.add_argument( '-W', '--writerApp', dest='writerApp',     metavar='<WriterProgram>',
                                 default=None,
                                 help='name of the process which saves the merged PV table')
 
         #
         # log messages go to stdout if no log file specified
         #
-        cmdLine.add_argument( '-l', '--logfile',  dest='logFile',       metavar='<LogFileName>',
-                                default=None,
+        cmdLine.add_argument( '-l', '--logfile',   dest='logFile',       metavar='<LogFileName>',
+                                default='./LOGS/SC-HXR.txt',
                                 help='name of logfile to record daily progress messages')
-        cmdLine.add_argument( '-s', '--severity', dest='logSeverity',   metavar='<SeverityOfLogMessages - debug or info>',
+        cmdLine.add_argument( '-s', '--severity',  dest='logSeverity',   metavar='<SeverityOfLogMessages - debug or info>',
                                 choices=logLevels,
                                 default='info',
                                 help='level of detail of progress messages to be recorded')
@@ -100,11 +109,11 @@ def commandOptions( argv: list) -> list:
         #
         # determine how often to check for changes to the input PV list or directory service
         #
-        cmdLine.add_argument( '-P', '--period',   dest='timeBetweenChecks',     metavar='<SecondsBetweenInputChangeChecks>',
+        cmdLine.add_argument( '-P', '--period',    dest='timeBetweenChecks',     metavar='<SecondsBetweenInputChangeChecks>',
                                 type=int,
                                 default=30,
                                 help='seconds to wait between checks of input file changes')
-        cmdLine.add_argument( '-G', '--grace',    dest='editGracePeriod',       metavar='<SecondsAfterLastFileChangeToRestart>',
+        cmdLine.add_argument( '-G', '--grace',     dest='editGracePeriod',       metavar='<SecondsAfterLastFileChangeToRestart>',
                                 type=int,
                                 default=30,
                                 help='grace period in seconds to allow input file editing')
@@ -143,7 +152,7 @@ def beginLogging( options: list) -> logging.Logger:
         # logfile will record messages and switch to a new logfile every day,
         # keeping 2 weeks of files then removing outdated ones.
         #
-        if options.logFile == None:
+        if options.logFile == None or options.logFile == '-':
                 handler = logging.StreamHandler()
         else:
                 try:
@@ -263,6 +272,7 @@ def stopIfAlreadyWorking( options: list, logger: logging.Logger):
         return
 
 #
+# Start the software
 # Watch for changes
 #
 class Watcher():
@@ -299,8 +309,17 @@ class Watcher():
                 self._opt = options
                 self._log = logger
 
-                self._mergerApp = self._opt.mergerApp
-                self._writerApp = self._opt.writerApp
+                self._workingDir = self._opt.workingDir
+
+                #
+                # Change directory early so relative paths will be recognized.
+                #
+                try:
+                        os.chdir( self._opt.workingDir)
+                        self._log.info( f'Ready to work from "{self._opt.workingDir}".')
+                except OSError as e:
+                        logger.critical( f'Unable to work in the directory named {self._opt.workingDir}: {e}.')
+                        self._unableToContinue = True
 
                 #
                 # Validate arguments here now that logging is available.
@@ -310,27 +329,39 @@ class Watcher():
                 # Don't quit after finding one issue, try and report all of
                 # them as early as possible.
                 #
-                if self._mergerApp == None and self._writerApp == None:
-                        self._log.critical( 'Neither the merger nor the writer software have been specified.  At least one must be provided.')
-                        self._unableToContinue = True
+                if self._opt.useMerger and self._opt.mergerApp == None:
+                        self._opt.mergerApp = 'mergerApp'
 
-                if self._mergerApp != None:
-                        self._mergerAppPath = self._findSoftwareLocation( self._mergerApp, description='merger')
+                if self._opt.useWriter and self._opt.writerApp == None:
+                        self._opt.writerApp = 'writerApp'
+
+                #
+                # Specifying the software location
+                # implies the software needs to be used
+                #
+                if self._opt.mergerApp != None:
+                        self._opt.useMerger = True
+                        self._mergerAppPath = self._findSoftwareLocation( self._opt.mergerApp, description='merger')
                         if self._mergerAppPath == None:
                                 self._log.critical( 'The merge software has been requested but it cannot be found.')
                                 self._unableToContinue = True
                         else:
-                                self._mergerApp = os.path.basename( self._mergerAppPath)
-                                self._log.debug( f'The {self._mergerApp} software was successfully located.')
+                                self._opt.mergerApp = os.path.basename( self._mergerAppPath)
+                                self._log.debug( f'The {self._opt.mergerApp} software was successfully located.')
 
-                if self._writerApp != None:
-                        self._writerAppPath = self._findSoftwareLocation( self._writerApp, description='writer')
+                if self._opt.writerApp != None:
+                        self._opt.useWriter = True
+                        self._writerAppPath = self._findSoftwareLocation( self._opt.writerApp, description='writer')
                         if self._writerAppPath == None:
                                 self._log.critical( 'The writer software has been requested but it cannot be found.')
                                 self._unableToContinue = True
                         else:
-                                self._writerApp = os.path.basename( self._writerAppPath)
-                                self._log.debug( f'The {self._writerApp} software was successfully located.')
+                                self._opt.writerApp = os.path.basename( self._writerAppPath)
+                                self._log.debug( f'The {self._opt.writerApp} software was successfully located.')
+
+                if not self._opt.useMerger and not self._opt.useWriter:
+                        self._log.critical( 'Neither the merger nor the writer software have been specified.  At least one must be provided.')
+                        self._unableToContinue = True
 
                 if self._opt.targetBeamline == None:
                         self._log.critical( 'The name of the PV to be recorded cannot be used.')
@@ -363,7 +394,7 @@ class Watcher():
                 # been requested, and executables have been found.
                 # Check if the writer is the only software requested to start
                 #
-                if self._mergerApp == None and self._writerApp != None:
+                if not self._opt.useMerger and self._opt.useWriter:
                         #
                         # no need to start watching the input file
                         # for changes, just watch the writer process
@@ -406,7 +437,7 @@ class Watcher():
                 Only start watching if the merger softwarehas been requested.
                 """
 
-                if self._mergerApp == None and self._writerApp != None:
+                if not self._opt.useMerger and self._opt.useWriter:
                         self._log.info( 'The input file is not used when only the Writer software was requested.')
                         return
 
@@ -687,13 +718,13 @@ class Watcher():
                 # disconnects, then the thread in which it was started will
                 # restart it.
                 #
-                if self._mergerApp != None:
+                if self._opt.useMerger:
                         if self._mergerThread == None:
                                 self._startMergerProcess()
                         else:
                                 self._mergerThread.signalProcess()
 
-                if self._writerApp != None:
+                if self._opt.useWriter:
                         if self._writerThread == None:
                                 self._startWriterProcess()
                 return
@@ -726,7 +757,9 @@ class Watcher():
 
                         processName = self._argList[0]
                         processArgs = self._argList[1]
-                        numStarts = 1
+
+                        totalProcRunTime = datetime.timedelta()
+                        numStarts = 0
 
                         self._parent._log.debug( f'NEW THREAD: Starting the {processName} software:')
                         if self._parent._opt.logSeverity == 'debug':
@@ -735,16 +768,33 @@ class Watcher():
                                         self._parent._log.debug( f'   {processName} ARG-> {i}:{arg}')
                                         i += 1
 
+                        #
+                        # keep this subprocess running for as long
+                        # as the manager is not being asked to stop
+                        #
                         while not self._parent._askedToStop:
+
+                                self._parent._log.info( 'STARTING the {} software at {} into this management session.'.format( processName.upper(), timeSinceStart()))
+
+                                procStartTime = datetime.datetime.now()
                                 try:
                                         self._processHandle = subprocess.Popen( processArgs, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
 
+                                        numStarts += 1
                                         for logMesg in self._processHandle.stdout:
                                                 logStr = logMesg.rstrip()
                                                 self._parent._log.debug( f'[{processName}]:{logStr}')
                                 except:
-                                        self._parent._log.warning( f'Unable to start the {processName} software.  Will try again in 1 minute.')
-                                        time.sleep( 60)
+                                        self._parent._log.error( f'Unable to start the {processName} software.  Will try again in 1 minute.')
+
+                                        #
+                                        # sleep won't be interrupted
+                                        # by signal to quit
+                                        #
+                                        for t in range( 0, 60, 2):
+                                                time.sleep( 2)
+                                                if self._parent._askedToStop:
+                                                        break
                                         continue
 
                                 self._processHandle.wait()
@@ -757,20 +807,40 @@ class Watcher():
                                 self._processHandle = None
                                 self._mutex.release()
 
+                                diffTime = datetime.datetime.now() - procStartTime
+
                                 if self._parent._askedToStop:
-                                        self._parent._log.info( f'The {processName} process has stopped.')
-                                        break;
-                                else:
-                                        self._parent._log.info( f'The {processName} process has quit; waiting 10 seconds to restart.')
+                                        self._parent._log.info( 'The {} process has stopped after working for {}.'.format( processName, duration( diffTime)))
+                                        continue
 
+                                totalProcRunTime += diffTime
+                                totalSeconds = totalProcRunTime.total_seconds()
+
+                                if numStarts >= 3 and totalSeconds < 120:
+                                        self._parent._log.error( 'The {} software has quit after working for {}.  That makes {} times in {}.  Waiting 5 minutes to try again.'.format( processName, duration( diffTime), numStarts, duration( totalProcRunTime)))
+
+                                        #
+                                        # reset the counters
+                                        #
+                                        totalProcRunTime = datetime.timedelta()
+                                        numStarts = 0
+
+                                        #
+                                        # sleep won't be interrupted
+                                        # by signal to quit
+                                        #
+                                        for t in range( 0, 5 * 60, 2):
+                                                time.sleep( 2)
+                                                if self._parent._askedToStop:
+                                                        break
+                                        continue
+
+                                self._parent._log.info( 'The {} software has quit after working for {}.  Restarting in 10 seconds, {} into this session.'.format( processName, duration( diffTime), timeSinceStart()))
                                 time.sleep( 10)
-
-                                numStarts += 1
-                                when = timeSinceStart()
-                                self._parent._log.info( f'RESTARTING the {processName} software (start number {numStarts}), {when} into this session.')
-                                #
-                                # TODO: check for too many restarts per unit time
-                                #
+                                for t in range( 0, 10, 2):
+                                        time.sleep( 2)
+                                        if self._parent._askedToStop:
+                                                break
 
                         return
 
@@ -788,7 +858,10 @@ class Watcher():
                         #
                         self._mutex.acquire()
                         if self._processHandle != None:
-                                self._processHandle.send_signal( signal.SIGTERM)
+                                try:
+                                        self._processHandle.send_signal( signal.SIGTERM)
+                                except OSError as e:
+                                        self._parent._log.debug( 'Cannot terminate a process: Error {}: {}'.format( e, repr( e)))
                         else:
                                 self._parent._log.debug( 'The process has already stopped, no need to send signal.')
                         self._mutex.release()
@@ -819,10 +892,10 @@ class Watcher():
                                 f'{self._opt.mergedPVName}'
                                 ]
 
-                self._log.info( 'Starting the MERGER software to acquire and combine data.')
+                self._log.debug( 'Starting the thread to manage the merger software.')
 
                 try:
-                        self._mergerThread = self._BSAThread( self, argList=( self._mergerApp, mergerArgs, ))
+                        self._mergerThread = self._BSAThread( self, argList=( self._opt.mergerApp, mergerArgs, ))
                         self._mergerThread.start()
                 except Exception as e:
                         self._log.debug( 'Merger thread exception;', e)
@@ -856,10 +929,10 @@ class Watcher():
                                 '_'
                                 ]
 
-                self._log.info( 'Starting the WRITER software to record data.')
+                self._log.debug( 'Starting the thread to manage the writer software.')
 
                 try:
-                        self._writerThread = self._BSAThread( self, argList=( self._writerApp, writerArgs, ))
+                        self._writerThread = self._BSAThread( self, argList=( self._opt.writerApp, writerArgs, ))
                         self._writerThread.start()
                 except Exception as e:
                         self._log.debug( 'Writer thread exception;', e)
@@ -878,7 +951,7 @@ def printStartMessage( options, logger):
         logger.info( '-------------------')
 
         suffix = ''
-        if options.mergerApp == None and options.writerApp != None:
+        if not options.useMerger and options.useWriter:
                 suffix = ', starting only the Writer software locally'
         else:
                 suffix = ', checking {} every {}'.format( options.inputFile, interval)
@@ -891,7 +964,7 @@ def timeSinceStart() -> str:
         """
         return timeSince( StartTime)
 
-def timeSince( startingTime) -> str:
+def timeSince( startingTime: datetime.datetime) -> str:
         """ Find the time that has passed since the given start time
         """
         stopTime = datetime.datetime.now()
@@ -919,6 +992,8 @@ def duration( diff: datetime.timedelta) -> str:
                 interval += f'{numMinutes} minute{"s" if numMinutes != 1 else ""} '
         if numSeconds > 0:
                 interval += f'{numSeconds} second{"s" if numSeconds != 1 else ""}'
+        if interval == '':
+                interval = '0 seconds'
         return interval
 
 def main( argv: list):
