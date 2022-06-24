@@ -31,18 +31,46 @@ application if it was requested.
 Recording its actions is an important part of this software, but only 2 weeks
 of audit files are maintained along with the current one.
 
-### bsasManager.py Usage
-| **Command Line Option** | **Long Option Name** | **Required** | **Purpose** | **Default Value** |
-|--:|:--|:-:|:--|---|
-|-f| --pvfile | Yes | File containing NTTable PV Names |  |
-|-o| --output | Yes | Name of Generated NTTable PV |  |
-|-t| --target | Yes | target Beamline name |  |
-|-D| --datadir | Yes | Directory to place data subdirectories |  |
-|-L| --lockdir | Yes | Directory to place software lock files |  |
-|-l| --logfile | No |  Name of daily log (audit) file | Standard output |
-|-m| --merger | No |  location of merger application software | from PATH |
-|-w| --writer | No |  location of writer application software | from PATH |
-|-s| --severity | No |  level of audit file output: info or debug  | info |
-|-P| --period | No |  Number of seconds between input file checks | 30 |
-|-G| --grace | No |  Number of seconds after last input file modification before merger is signalled | 30 |
+## bsasManager.py Usage
+The bsasManager software uses defaults for most settings, which will be incorrect
+for anything except use with the superconducting hard x-ray line instrumentation.
+
+At least one of the **-m** or **-w** options must be set.  In other words, the
+_bsasManager_ must have something to manage.  Also, the **data** and **lock**
+directories specified with the **-D** and **-L** options respectively, must exist
+prior to starting the software, the _bsasManager_ will not create them.  It will
+create everything within those directories.
+
+There is a special testing option available for the audit log; if **-l** is given
+the value of **-**, messages will be sent to the standard output rather than a
+disk file.
+
+### Command Option Summary
+
+| **Short Option** | **Long Option** | **Parameter** | **Purpose** | **Default Value** |
+|--:|:--|:--|---|---|
+|-d| --dir       | directory       | Directory from which BSAS will work | '.' (current directory) |
+|-f| --pvfile    | filename        | File containing input NTTable PV Names | pvlist |
+|-o| --output    | PV name         | Name of Generated NTTable PV | SC-HXR-TBL |
+|-m| --merger    |                 | start and manage the Merger software on this computer | do not start |
+|-w| --writer    |                 | start and manage the Writer software on this computer | do not start |
+|-t| --target    | dataset name    | target Beamline name | SC-HXR |
+|-l| --logfile   | logfile name    | Name of daily audit log file | ./LOGS/SC-HXR.txt |
+|-s| --severity  | info or debug   | level of audit file output: info or debug  | info |
+|-P| --period    | seconds         | Number of seconds between input file checks | 30 |
+|-G| --grace     | seconds         | Number of seconds after last input file modification before merger is signalled | 30 |
+|-D| --datadir   | directory       | Directory to place data subdirectories | ./DATA |
+|-L| --lockdir   | directory       | Directory to place software lock files | ./LOCKS |
+|-M| --mergerApp | path to program | location of merger application software | from PATH |
+|-W| --writerApp | path to program | location of writer application software | from PATH |
+
+### Examples
+The following command will attempt to start the BSA Service from /tmp/bsaTest, using only the Merger software:
+	`bsasManager.py -m -d /tmp/bsaTest `
+
+This next command will start both Merger and Writer applications on the current computer, with audit log messages coming to the standard output:
+	`bsasManager.py -m -w -l- `
+
+The following (lengthy) command can be used to acquire and store data related to the soft x-ray line:
+	`bsasManager.py -d /nfs/slac/g/bsd/BSAService -f ./SC-SXR.pvlist -o SC-SXR-TBL -t SC-SXR -l ./LOGS/SC-SXR.txt -D ./DATA -L ./LOCKS -M '/afs/slac/g/lcls/package/bsasMerger' -W '/afs/slac/g/lcls/package/bsasWriter' --severity=info --period=10 --grace=120`
 
