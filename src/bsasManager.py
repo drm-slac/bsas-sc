@@ -49,7 +49,7 @@ import logging.handlers
 #
 # command line options are preferred to environment variables
 #
-def commandOptions( argv: list) -> list:
+def commandOptions() -> list:
         """ Retrieve command line options then return the parsed arguments """
 
         from argparse import ArgumentParser
@@ -96,7 +96,7 @@ def commandOptions( argv: list) -> list:
                                 help='name of the process which saves the merged PV table')
 
         #
-        # log messages go to stdout if no log file specified
+        # log messages go to stdout if '-l' is given a '-' option
         #
         cmdLine.add_argument( '-l', '--logfile',   dest='logFile',       metavar='<LogFileName>',
                                 default='./LOGS/SC-HXR.txt',
@@ -145,14 +145,14 @@ def beginLogging( options: list) -> logging.Logger:
 
         newLog = logging.getLogger( __name__)
         newLog.setLevel( logSeverity)
-        delayError = False;
+        delayError = False
 
         #
         # Log to standard output if no logfile specified.  If specified, the
         # logfile will record messages and switch to a new logfile every day,
         # keeping 2 weeks of files then removing outdated ones.
         #
-        if options.logFile == None or options.logFile == '-':
+        if options.logFile is None or options.logFile == '-':
                 handler = logging.StreamHandler()
         else:
                 try:
@@ -162,7 +162,7 @@ def beginLogging( options: list) -> logging.Logger:
                         # don't print an error message yet
                         #
                         handler = logging.StreamHandler()
-                        delayError = True;
+                        delayError = True
 
         #
         # Set message format to include date and time, severity and message text
@@ -205,7 +205,7 @@ def stopIfAlreadyWorking( options: list, logger: logging.Logger):
         # is not easily checked because the file system is shared and could be
         # just an instance of a writer with no merger process.
         #
-        hostName = socket.gethostname();
+        hostName = socket.gethostname()
         lockFileName = options.lockDirName + '/' + options.targetBeamline + '-' + hostName + '.lock'
 
         logger.debug( f'Checking for another running BSAS manager process on {hostName} by checking "{lockFileName}".')
@@ -266,7 +266,7 @@ def stopIfAlreadyWorking( options: list, logger: logging.Logger):
                         fp.write( str( os.getpid()))
 
         except Exception as e:
-                logger.debug( 'Problem encountered while trying to create lock file ({lockFileName}).  Error {} ({})'.format( e, repr( e)))
+                logger.debug( 'Problem encountered while trying to create lock file ({}).  Error {} ({})'.format( lockFileName, e, repr( e)))
                 logger.warning( 'A lock file could not be created, the possibility exists that another BSAS manager could interfere.')
 
         return
@@ -329,10 +329,10 @@ class Watcher():
                 # Don't quit after finding one issue, try and report all of
                 # them as early as possible.
                 #
-                if self._opt.useMerger and self._opt.mergerApp == None:
+                if self._opt.useMerger and self._opt.mergerApp is None:
                         self._opt.mergerApp = 'mergerApp'
 
-                if self._opt.useWriter and self._opt.writerApp == None:
+                if self._opt.useWriter and self._opt.writerApp is None:
                         self._opt.writerApp = 'writerApp'
 
                 #
@@ -342,7 +342,7 @@ class Watcher():
                 if self._opt.mergerApp != None:
                         self._opt.useMerger = True
                         self._mergerAppPath = self._findSoftwareLocation( self._opt.mergerApp, description='merger')
-                        if self._mergerAppPath == None:
+                        if self._mergerAppPath is None:
                                 self._log.critical( 'The merge software has been requested but it cannot be found.')
                                 self._unableToContinue = True
                         else:
@@ -352,7 +352,7 @@ class Watcher():
                 if self._opt.writerApp != None:
                         self._opt.useWriter = True
                         self._writerAppPath = self._findSoftwareLocation( self._opt.writerApp, description='writer')
-                        if self._writerAppPath == None:
+                        if self._writerAppPath is None:
                                 self._log.critical( 'The writer software has been requested but it cannot be found.')
                                 self._unableToContinue = True
                         else:
@@ -363,7 +363,7 @@ class Watcher():
                         self._log.critical( 'Neither the merger nor the writer software have been specified.  At least one must be provided.')
                         self._unableToContinue = True
 
-                if self._opt.targetBeamline == None:
+                if self._opt.targetBeamline is None:
                         self._log.critical( 'The name of the PV to be recorded cannot be used.')
                         self._unableToContinue = True
 
@@ -449,7 +449,7 @@ class Watcher():
                 self._editSessionFinished = True
                 try:
                         pvListExists = os.path.exists( self._opt.inputFile)
-                        if pvListExists == False:
+                        if not pvListExists:
                                 self._log.debug( f'Cannot access the file containing the PV list ({self._opt.inputFile}).  Waiting for it.')
                                 self._lastModTime = time.time()
                         else:
@@ -578,7 +578,7 @@ class Watcher():
                 try:
                         self._newModTime = os.path.getmtime( self._opt.inputFile)
                 except:
-                        if self._alreadyNotedFileMissing == False:
+                        if not self._alreadyNotedFileMissing:
                                 if firstLook:
                                         self._log.warning( f'The input file containing PV names ({self._opt.inputFile}) is not currently available.  Waiting for it.')
                                 else:
@@ -647,7 +647,6 @@ class Watcher():
                         PVList = fp.readlines()
                 except:
                         self._log.warning( f'Input file ({self._opt.inputFile}) cannot be accessed. Attempting to continue with previously used PVs.')
-                        fp.close()
                         return
                 fp.close()
 
@@ -719,13 +718,13 @@ class Watcher():
                 # restart it.
                 #
                 if self._opt.useMerger:
-                        if self._mergerThread == None:
+                        if self._mergerThread is None:
                                 self._startMergerProcess()
                         else:
                                 self._mergerThread.signalProcess()
 
                 if self._opt.useWriter:
-                        if self._writerThread == None:
+                        if self._writerThread is None:
                                 self._startWriterProcess()
                 return
 
@@ -996,13 +995,13 @@ def duration( diff: datetime.timedelta) -> str:
                 interval = '0 seconds'
         return interval
 
-def main( argv: list):
+def main():
         """ Gather command line options, start the logging mechanism then continuously watch for changes. """
 
         global StartTime
         StartTime = datetime.datetime.now()
 
-        argOptions = commandOptions( argv)
+        argOptions = commandOptions()
         logger = beginLogging( argOptions)
 
         printStartMessage( argOptions, logger)
@@ -1022,4 +1021,4 @@ def main( argv: list):
         return
 
 if __name__ == '__main__':
-        main( sys.argv[1:])
+        main()
