@@ -1,9 +1,9 @@
 # BSAS Manager Software
-This **bsasManager** program is responsible for controlling the **Beam Synchronous Acquisition System** at SLAC.
+This **bsasManager** program is responsible for controlling the **Beam Synchronous Acquisition System** for superconducting beamline devices at SLAC.
 
 This software is meant to manage the **Beam Synchronous Acquisition software**
-(_BSAS_). Meant to run continuously as a daemon process, it starts a **Merger** program to
-acquire and coalesce data and another to record the resulting data.  The
+(_BSAS_), specifically for the superconducting LCLS-II accelerator beamline. Meant to run continuously as a daemon process, it starts a **Merger** program to
+acquire and coalesce data and a second process to record the resulting data.  The
 acquisition software learns of the data to acquire from an input file which
 names a set of NTTable PVs. It will gather data from those PVs and merge them
 together into a larger table.  This larger, merged NTTable is then monitored by
@@ -28,21 +28,20 @@ monitoring the input file containing the NTTable PVs to acquire.  When it finds
 a change, it stops the **merger** software and restarts it, as well as the **writer**
 application if it was requested.
 
-Recording its actions is an important part of this software, but only 2 weeks
+Recording its actions in an audit (log) file is an important part of this software, but only 2 weeks
 of audit files are maintained along with the current one.
 
 ## bsasManager.py Usage
 The bsasManager software uses defaults for most settings, which will be incorrect
 for anything except use with the superconducting hard x-ray line instrumentation.
 
-At least one of the **-m** or **-w** options must be set.  In other words, the
-_bsasManager_ must have something to manage.  Also, the **data** and **lock**
+At least one of the **-m** or **-w** options must be set because the _bsasManager_ must start one or both of the **merger** or **writer** software.  Also, the **data** and **lock**
 directories specified with the **-D** and **-L** options respectively, must exist
 prior to starting the software, the _bsasManager_ will not create them.  It will
 create everything within those directories.
 
 There is a special testing option available for the audit log; if **-l** is given
-the value of **-**, messages will be sent to the standard output rather than a
+the value of "**-**", messages will be sent to the standard output rather than a
 disk file.
 
 ### Command Option Summary
