@@ -14,13 +14,17 @@ Revision 1.0, 04-May-2022, Initial Version.
 
 # System Overview
 
-**NOTE**: This document applies primarily to LCLS-II, associated with the Superconducting Linac.
+> **NOTE:**
+> This document applies primarily to LCLS-II, associated with the Superconducting Linac.
 
 This Beam Synchronous Acquisition Service (BSAS) records data from devices which are synchronized with a beam pulse, specifically with the timing signal that marks the presence of a beam pulse.  LCLS-I can provide beam at 120 Hz, while LCLS-II can provide beam up to 1 MHz.  This document deals with acquisition and recording of data from LCLS-II devices.
-General purpose processors are not able to handle data directly at 1 MHz rates in the current system architecture.  To handle these rates, Field Programmable Gate Arrays (FPGAs) acquire the data directly from accelerator devices when enabled by the timing system.  That data is then made available to dedicated microprocessors, located in the same physical equipment housing the FPGA.  These processors are referred to as Input/Output Controllers (IOCs) using the EPICS control system toolkit.
+General purpose processors are not able to handle data directly at 1 MHz rates, so specialized components are used.  Field Programmable Gate Arrays (FPGAs) acquire the data directly from accelerator devices when enabled by the timing system.  That data is then made available to dedicated microprocessors, located in the same physical equipment housing the FPGA.  These processors are referred to as Input/Output Controllers (IOCs) using the EPICS control system toolkit.
 
-<<diagram>>
-Figure 1
+<!-- ![alt FPGAs and IOCs Acquire Data](images/SC-BSAS-LowLevel.png =100x100). -->
+<figure align="center">
+	<img src="images/SC-BSAS-LowLevel.png" width="527">
+	<figcaption><b>Figure 1.</b> FPGAs and EPICS IOCs Work to Acquire Data</figcaption>
+</figure>
 
 Although the FPGA can handle incoming data up to 1 MHz, it’s associated IOC is only able to process data up to 1 kHz.  Thus, if the beam rate is 1kHz or less, the IOC can successfully acquire all available data.
 When beam rates are greater than 1kHz, the IOC still processes incoming data at 1 kHz.  In other words, with a beam rate of 1 MHz the IOC is only able to process a single value from each input every millisecond.  It will be missing 999 additional values from each input during that millisecond window.
@@ -55,6 +59,12 @@ Offline access and online, live-time access
 ### Copying Data
 
 ## Data File Structure
+###  Data Format Details
+
+> **Important:**
+***The data includes a column incorrectly labeled RMS, which actually contains standard deviation data.***
+The Root Mean Square (RMS) is the square root of the arithmetic mean of the squares of each of the data points, but the Standard Deviation is the square of the difference between each data point and the mean.
+
 ### Hierarchical Data Format (HDF)
 
 ### Time stamps and Beam Pulse IDs
@@ -73,3 +83,4 @@ Offline access and online, live-time access
 
 ## Subsystem Operations
 ### BSAS Manager Process
+ 
