@@ -19,7 +19,9 @@ CHECK_RELEASE = YES
 # Set this when you only want to compile this application
 #   for a subset of the cross-compiled target architectures
 #   that Base is built for.
-#CROSS_COMPILER_TARGET_ARCHS = vxWorks-ppc32
+#CROSS_COMPILER_TARGET_ARCHS = linuxRT-x86_64 
+
+CROSS_COMPILER_TARGET_ARCHS =
 
 # To install files into a location other than $(TOP) define
 #   INSTALL_LOCATION here.
@@ -35,9 +37,45 @@ CHECK_RELEASE = YES
 #HOST_OPT = NO
 #CROSS_OPT = NO
 
+
+# =============================
+# Build Application Statically
+# =============================
+SHARED_LIBRARIES=NO
+STATIC_BUILD=YES
+
 USR_CPPFLAGS += -std=c++11
 USR_CPPFLAGS += -DUSE_TYPED_RSET
 #USR_CPPFLAGS += -DUSE_TYPED_DSET # Not supported by EPICS 7.0.3
+
+# =================================
+# Define the archiecture versions
+# =================================
+LINUX_KERNEL_MODULES=$(PACKAGE_SITE_TOP)/linuxKernel_Modules
+LINUXRT_BUILDROOT_VERSION=buildroot-2019.08
+LINUX_VERSION=rhel7
+
+
+# ===========================================================================
+# hdf5
+# ===========================================================================
+HDF5_PACKAGE_NAME = hdf5
+HDF5_VERSION      = 1.10.8
+HDF5_TOP          = $(PACKAGE_SITE_TOP)/$(HDF5_PACKAGE_NAME)/$(HDF5_VERSION)
+HDF5_LIB          = $(HDF5_TOP)/$(PKG_ARCH)/lib
+HDF5_INCLUDE      = $(HDF5_TOP)/$(PKG_ARCH)/include
+# ===========================================================================
+
+# ===========================================================================
+# zlib
+# ===========================================================================
+ZLIB_PACKAGE_NAME = zlib
+ZLIB_VERSION      = 1.2.8
+ZLIB_TOP          = $(PACKAGE_SITE_TOP)/$(ZLIB_PACKAGE_NAME)/$(ZLIB_VERSION)
+ZLIB_LIB          = $(ZLIB_TOP)/$(PKG_ARCH)/lib
+ZLIB_INCLUDE      = $(ZLIB_TOP)/$(PKG_ARCH)/include
+# ===========================================================================
+
 
 # These allow developers to override the CONFIG_SITE variable
 # settings without having to modify the configure/CONFIG_SITE
