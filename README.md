@@ -1,5 +1,5 @@
 # BSAS Manager Software
-This **bsasManager** program is responsible for controlling the **Beam Synchronous Acquisition System** for superconducting beamline devices at SLAC.
+The **bsasManager** program is responsible for controlling the **Beam Synchronous Acquisition System** for superconducting beamline devices at SLAC.
 
 This software is meant to manage the **Beam Synchronous Acquisition software**
 (_BSAS_), specifically for the superconducting LCLS-II accelerator beamline. Meant to run continuously as a daemon process, it starts a **Merger** program to

@@ -15,7 +15,7 @@ Revision 1.0, 04-May-2022, Initial Version.
 # System Overview
 
 > **NOTE:**
-> This document applies primarily to LCLS-II, associated with the Superconducting Linac.
+> This document applies primarily to LCLS-II and devices associated with the Superconducting Linac.
 
 This Beam Synchronous Acquisition Service (BSAS) records data from devices which are synchronized with a beam pulse, specifically with the timing signal that marks the presence of a beam pulse.  LCLS-I can provide beam at 120 Hz, while LCLS-II can provide beam up to 1 MHz.  This document deals with acquisition and recording of data from LCLS-II devices.
 General purpose processors are not able to handle data directly at 1 MHz rates, so specialized components are used.  Field Programmable Gate Arrays (FPGAs) acquire the data directly from accelerator devices when enabled by the timing system.  That data is then made available to dedicated microprocessors, located in the same physical equipment housing the FPGA.  These processors are referred to as Input/Output Controllers (IOCs) using the EPICS control system toolkit.
