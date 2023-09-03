@@ -1,0 +1,6 @@
+PVXS=/home/bmartins/workspace/epics/pvxs
+EPICS_BASE=/home/bmartins/workspace/epics/base
+
+-include $(TOP)/../RELEASE.local
+-include $(TOP)/../RELEASE.$(EPICS_HOST_ARCH).local
+-include $(TOP)/configure/RELEASE.local

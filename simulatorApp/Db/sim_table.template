@@ -1,0 +1,49 @@
+record(aSub, "$(P)$(R)_ASUB") {
+    field(INAM, "sim_init")
+    field(SNAM, "sim_proc")
+
+    field(SCAN, "$(SCAN)")
+
+    # Number of Tables to simulate
+    field(FTA,  "LONG")
+    field(INPA, {const: $(NUM_TABLES)})
+
+    # Number of Signals in each Table to simulate
+    field(FTB,  "LONG")
+    field(INPB, {const: $(NUM_SIGNALS)})
+
+    # Output configuration for each PV
+    # The output can be either a table of scalars or a table of statistics
+    # Table of scalars (below values should be OR'ed)
+    #   0x01: timestamp user tag
+    #   0x02: alarm severity
+    #   0x04: alarm condition
+    #   0x08: alarm message
+    # Table of statistics:
+    #   0x10: statitics table with the following columns:
+    #         num_samples, value, min, max, avg, rms
+    field(FTC,  "LONG")
+    field(INPC, {const: $(CONFIG)})
+
+    # Number of compressed samples
+    # Used only in statistics table
+    field(FTD,  "LONG")
+    field(INPD, {const: $(NUM_SAMPLES)})
+
+    # Time step (seconds)
+    field(FTE,  "DOUBLE")
+    field(INPE, {const: $(TIME_STEP_SEC)})
+
+    # Number of rows per update
+    field(FTF,  "LONG")
+    field(INPF, {const: $(NUM_ROWS)})
+
+    # Label separator
+    field(FTG,  "STRING")
+    field(INPG, {const: "$(LABEL_SEP=".")"})
+
+    # Column separator
+    field(FTH,  "STRING")
+    field(INPH, {const: "$(COL_SEP="_")"})
+}
+

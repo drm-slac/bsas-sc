@@ -1,0 +1,20 @@
+file "stack_0016.db" {
+pattern
+{ R,        INPR,        CONFIG,       PERIOD       }
+{ "\$(R)0", "\$(INPR)0", "\$(CONFIG)", "\$(PERIOD)" }
+{ "\$(R)1", "\$(INPR)1", "\$(CONFIG)", "\$(PERIOD)" }
+{ "\$(R)2", "\$(INPR)2", "\$(CONFIG)", "\$(PERIOD)" }
+{ "\$(R)3", "\$(INPR)3", "\$(CONFIG)", "\$(PERIOD)" }
+{ "\$(R)4", "\$(INPR)4", "\$(CONFIG)", "\$(PERIOD)" }
+{ "\$(R)5", "\$(INPR)5", "\$(CONFIG)", "\$(PERIOD)" }
+{ "\$(R)6", "\$(INPR)6", "\$(CONFIG)", "\$(PERIOD)" }
+{ "\$(R)7", "\$(INPR)7", "\$(CONFIG)", "\$(PERIOD)" }
+{ "\$(R)8", "\$(INPR)8", "\$(CONFIG)", "\$(PERIOD)" }
+{ "\$(R)9", "\$(INPR)9", "\$(CONFIG)", "\$(PERIOD)" }
+{ "\$(R)A", "\$(INPR)A", "\$(CONFIG)", "\$(PERIOD)" }
+{ "\$(R)B", "\$(INPR)B", "\$(CONFIG)", "\$(PERIOD)" }
+{ "\$(R)C", "\$(INPR)C", "\$(CONFIG)", "\$(PERIOD)" }
+{ "\$(R)D", "\$(INPR)D", "\$(CONFIG)", "\$(PERIOD)" }
+{ "\$(R)E", "\$(INPR)E", "\$(CONFIG)", "\$(PERIOD)" }
+{ "\$(R)F", "\$(INPR)F", "\$(CONFIG)", "\$(PERIOD)" }
+}

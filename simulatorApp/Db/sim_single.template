@@ -1,0 +1,16 @@
+record(calc, "$(P)$(R)") {
+    field(INPA, "0")
+    field(INPB, "0.1")
+    field(CALC, "SIN(A); A:=A+B*D2R")
+    field(SCAN, "$(SCAN)")
+
+    field(HIHI, "$(HIHI=0.99)")
+    field(HIGH, "$(HIGH=0.95)")
+    field(LOW,  "$(LOW=-0.95)")
+    field(LOLO, "$(LOLO=-0.99)")
+
+    field(HHSV, "MAJOR")
+    field(HSV,  "MINOR")
+    field(LSV,  "MINOR")
+    field(LLSV, "MAJOR")
+}

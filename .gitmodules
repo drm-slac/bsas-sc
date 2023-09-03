@@ -1,0 +1,3 @@
+[submodule "highfiveApp/HighFive"]
+	path = highfiveApp/HighFive
+	url = https://github.com/BlueBrain/HighFive

@@ -1,0 +1,8 @@
+file "stack_0256.db" {
+pattern
+{ R,        INPR,        CONFIG,       PERIOD       }
+{ "\$(R)0", "\$(INPR)0", "\$(CONFIG)", "\$(PERIOD)" }
+{ "\$(R)1", "\$(INPR)1", "\$(CONFIG)", "\$(PERIOD)" }
+{ "\$(R)2", "\$(INPR)2", "\$(CONFIG)", "\$(PERIOD)" }
+{ "\$(R)3", "\$(INPR)3", "\$(CONFIG)", "\$(PERIOD)" }
+}
