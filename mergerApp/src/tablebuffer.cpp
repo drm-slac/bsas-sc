@@ -17,13 +17,20 @@ TimeSpan::TimeSpan() {
 TimeSpan::TimeSpan(const TimeStamp & start, const TimeStamp & end)
 : valid(true), start(start), end(end)
 {
+    char message[1024];
+
+    epicsSnprintf(message, sizeof(message),
+        "TimeSpan start=%u.%09u.%016lX end=%u%.09u.%016lX",
+        start.ts.secPastEpoch, start.ts.nsec, start.utag,
+        end.ts.secPastEpoch, end.ts.nsec, end.utag);
+
     if (start > end) {
-        char message[1024];
+        //char message[1024];
         epicsSnprintf(message, sizeof(message),
             "TimeSpan expected to have start=%u.%09u.%016lX before end=%u%.09u.%016lX",
             start.ts.secPastEpoch, start.ts.nsec, start.utag,
             end.ts.secPastEpoch, end.ts.nsec, end.utag);
-        throw std::runtime_error(message);
+        //throw std::runtime_error(message);
     }
 }
 

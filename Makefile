@@ -2,36 +2,26 @@
 TOP = .
 include $(TOP)/configure/CONFIG
 
-# Directories to build, any order
 DIRS += configure
-DIRS += $(wildcard *Sup)
-DIRS += $(wildcard *App)
-DIRS += $(wildcard *Top)
-DIRS += $(wildcard iocBoot)
-
-# The build order is controlled by these dependency rules:
+#DIRS += managerApp
+DIRS += nttableApp
+DIRS += commonApp
+DIRS += highfiveApp
+DIRS += mergerApp
+DIRS += writerApp
+#DIRS += test
 
 # All dirs except configure depend on configure
 $(foreach dir, $(filter-out configure, $(DIRS)), \
     $(eval $(dir)_DEPEND_DIRS += configure))
 
-# Any *App dirs depend on all *Sup dirs
-$(foreach dir, $(filter %App, $(DIRS)), \
-    $(eval $(dir)_DEPEND_DIRS += $(filter %Sup, $(DIRS))))
-
-# Any *Top dirs depend on all *Sup and *App dirs
-$(foreach dir, $(filter %Top, $(DIRS)), \
-    $(eval $(dir)_DEPEND_DIRS += $(filter %Sup %App, $(DIRS))))
-
-# iocBoot depends on all *App dirs
-iocBoot_DEPEND_DIRS += $(filter %App,$(DIRS))
-
-# Add any additional dependency rules here:
+# additional dependency rules:
 commonApp_DEPEND_DIRS += nttableApp
-stackerApp_DEPEND_DIRS += commonApp
-mergerApp_DEPEND_DIRS += commonApp
-writerApp_DEPEND_DIRS += commonApp highfiveApp
+writerApp_DEPEND_DIRS += commonApp
+writerApp_DEPEND_DIRS += highfiveApp
 
 USR_CPPFLAGS += -std-c++11
 
 include $(TOP)/configure/RULES_TOP
+
+UNINSTALL_DIRS += $(wildcard $(INSTALL_LOCATION)/python*)

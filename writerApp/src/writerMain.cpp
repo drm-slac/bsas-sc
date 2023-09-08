@@ -213,7 +213,7 @@ int main (int argc, char *argv[]) {
         .maskDisconnected(false)
         .exec();
 
-    enum StopReason stop_reason;
+    enum StopReason stop_reason = StopReason::ERROR;
 
     try {
         bool done = false;
