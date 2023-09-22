@@ -80,6 +80,8 @@ The Root Mean Square (RMS) is the square root of the arithmetic mean of the squa
 
 #	System Operation
 ## Deployment Overview
+Several instances of the BSAS-Merge software runs on lcls-srv01.
+Associated instances of the BSAS-Write software currently runs on mccas0, but will soon run on machines such as **psana** or **iana**, on the S3DF cluster.
 
 ## Subsystem Operations
 ### BSAS Manager Process
