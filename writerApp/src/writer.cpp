@@ -203,22 +203,24 @@ void Writer::write(pvxs::Value value) {
         return;
     }
 
-    // Check that the update has data to be written
-    size_t num_rows =  type_->wrap(value, false).get_column_as<TimeTable::SECONDS_PAST_EPOCH_T>(
-        TimeTable::SECONDS_PAST_EPOCH_COL
-    ).size();
+    size_t num_rows = 1024;
 
-    if (num_rows == 0) {
-        log_warn_printf(LOG, "Zero rows, skip writing%s\n", "");
-        return;
-    }
+    if( type_ == nullptr) {
 
-    if (!type_) {
         log_debug_printf(LOG, "First update, extracting type%s\n", "");
         type_.reset(new TimeTable(value));
 
         // Set chunk size to the size of this first update
         build_file_structure(num_rows);
+    } else {
+        // Check that the update has data to be written
+        num_rows =  type_->wrap(value, false).get_column_as<TimeTable::SECONDS_PAST_EPOCH_T>(
+            TimeTable::SECONDS_PAST_EPOCH_COL).size();
+
+        if (num_rows == 0) {
+            log_warn_printf(LOG, "Zero rows, skip writing%s\n", "");
+            return;
+        }
     }
 
     epicsTimeStamp start, end;
