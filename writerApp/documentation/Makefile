@@ -1,8 +1,5 @@
 TOP=../..
 
 include $(TOP)/configure/CONFIG
-
-PROD = bsasManager.py
-
+DOCS += BSAS-SC-writer-HDF-Layout.md
 include $(TOP)/configure/RULES
-

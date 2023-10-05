@@ -3,12 +3,13 @@ TOP = .
 include $(TOP)/configure/CONFIG
 
 DIRS += configure
-#DIRS += managerApp
+DIRS += managerApp
 DIRS += nttableApp
 DIRS += commonApp
 DIRS += highfiveApp
 DIRS += mergerApp
 DIRS += writerApp
+DIRS += documentation
 #DIRS += test
 
 # All dirs except configure depend on configure

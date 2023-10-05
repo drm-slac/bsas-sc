@@ -1,7 +1,6 @@
 TOP=..
 
 include $(TOP)/configure/CONFIG
-SCRIPTS += bsasManager.py
-DOCS += BSAS-SC-Manager.md
+DOCS += BSAS-SC-UsersManual.md
 include $(TOP)/configure/RULES
 
