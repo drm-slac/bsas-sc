@@ -22,7 +22,7 @@ General purpose processors are not able to handle data directly at 1 MHz rates, 
 
 <!-- ![alt FPGAs and IOCs Acquire Data](images/SC-BSAS-LowLevel.png =100x100). -->
 <figure align="center">
-	<img src="images/BSAS-SC-LowLevel.png" width="527">
+	<img src="../documentation/images/BSAS-SC-LowLevel.png" width="527">
 	<figcaption><b>Figure 1.</b> FPGAs and EPICS IOCs Work to Acquire Data</figcaption>
 </figure>
 
