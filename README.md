@@ -20,7 +20,7 @@ BSAS-SC refers to the system associated with the superconducting Linac (*LCLS-II
 
 ## Installing
 
-This software is typically installed on a supported Linux system at SLAC, such as a Redhat Enterprise Linux server, version 6 or higher.
+This software is typically installed on a supported Linux system at SLAC, such as a Redhat Enterprise Linux server, version 7 or higher.
 
 > **NOTE:**
 > This software will not currently build on Windows or standard MacOS systems having case-insensitive file systems.
@@ -65,6 +65,8 @@ A *doc* directory will also be created with documentation installed.
 The **mergerApp** and **writerApp** are primary components which are started and restarted as necessary by the **managerApp**.  When working on different host computers, as they typically are, the **mergerApp** and **writerApp** each have their own instance of the **managerApp** monitoring them.  If the merger and writer are working on the same host computer, for testing scenarios for example, a single manager instance can monitor them both.jj
 
 ## Features
+
+The system can acquire data from several IOCs, gathered to one server then transmit that data to another computer to record the data is a specific format.
 
 ## Configuration
 
